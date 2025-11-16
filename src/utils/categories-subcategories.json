@@ -1,0 +1,323 @@
+{
+  "categories": [
+    {
+      "name": "Alimentación",
+      "icon": "🍔",
+      "keywords": ["comida", "almuerzo", "cena", "desayuno", "delivery", "comedor", "restaurant"],
+      "subcategories": [
+        {
+          "name": "Bodega",
+          "keywords": ["bodega", "tienda", "abarrotes", "licorería"]
+        },
+        {
+          "name": "Market",
+          "keywords": ["minimarket", "market"]
+        },
+        {
+          "name": "Panadería",
+          "keywords": ["panadería", "pan", "pastelería", "repostería", "panaderia", "pastel", "torta"]
+        },
+        {
+          "name": "Pollería",
+          "keywords": ["pollería", "polleria", "pollo", "broaster", "chicken"]
+        },
+        {
+          "name": "Menú",
+          "keywords": ["menú", "menu","Menú" , "almuerzo", "comida corrida", "plato del día"]
+        },
+        {
+          "name": "Cena",
+          "keywords": ["cena", "comida nocturna"]
+        },
+        {
+          "name": "Pizzería",
+          "keywords": ["pizzería", "pizzeria", "pizza", "domino's", "papa john's", "little caesars"]
+        },
+        {
+          "name": "Restaurante",
+          "keywords": ["restaurante", "restaurant", "comedor", "cevichería", "cevicheria", "chifa"]
+        },
+        {
+          "name": "Supermercado",
+          "keywords": ["supermercado", "metro", "plaza vea", "tottus", "wong", "vivanda"]
+        },
+        {
+          "name": "Fast Food",
+          "keywords": ["mcdonald", "burger", "pizza", "kfc", "bembos", "subway", "delivery"]
+        },
+        {
+          "name": "Cafetería",
+          "keywords": ["cafetería", "cafeteria", "café", "coffee", "starbucks", "juan valdez"]
+        },
+        {
+          "name": "Otros Alimentos",
+          "keywords": ["mercado", "feria", "comida"]
+        }
+      ]
+    },
+    {
+      "name": "Transporte",
+      "icon": "🚗",
+      "keywords": ["transporte", "viaje", "movilidad", "traslado"],
+      "subcategories": [
+        {
+          "name": "Taxi",
+          "keywords": ["taxi", "cabify", "beat", "indriver", "easy taxi"]
+        },
+        {
+          "name": "Uber",
+          "keywords": ["uber", "uber eats"]
+        },
+        {
+          "name": "Bus",
+          "keywords": ["bus"]
+        },
+          {
+          "name": "micro",
+          "keywords": [ "micro", "transporte público", "metropolitano"]
+        },
+         {
+          "name": "Didi",
+          "keywords": ["Didi", "Didi eats"]
+        },
+        {
+          "name": "Gasolina",
+          "keywords": ["gasolina", "grifo", "combustible", "petroperú", "repsol", "primax"]
+        },
+        {
+          "name": "Estacionamiento",
+          "keywords": ["estacionamiento", "parking", "cochera", "parqueo"]
+        },
+        {
+          "name": "Peaje",
+          "keywords": ["peaje", "toll"]
+        },
+        {
+          "name": "Otros Transporte",
+          "keywords": ["movilidad", "traslado"]
+        }
+      ]
+    },
+    {
+      "name": "Entretenimiento",
+      "icon": "🎬",
+      "keywords": ["entretenimiento", "diversión", "ocio", "recreación"],
+      "subcategories": [
+        {
+          "name": "Cine",
+          "keywords": ["cine", "cinemark", "cineplanet", "cinépolis", "película", "movie"]
+        },
+        {
+          "name": "Streaming",
+          "keywords": ["netflix", "spotify", "amazon prime", "disney", "hbo", "youtube premium"]
+        },
+        {
+          "name": "Videojuegos",
+          "keywords": ["steam", "playstation", "xbox", "nintendo", "videojuego", "game"]
+        },
+        {
+          "name": "Deportes",
+          "keywords": ["gimnasio", "gym", "deporte", "fitness", "fútbol", "natación"]
+        },
+        {
+          "name": "Trekking",
+          "keywords": ["trekking", "senderismo", "excursión", "caminata"]
+        },
+        {
+          "name": "Conciertos",
+          "keywords": ["concierto", "música", "banda", "artista", "show"]
+        },
+        {
+          "name": "Eventos",
+          "keywords": ["concierto", "evento", "show", "teatro", "festival"]
+        },
+        {
+          "name": "Otros Entretenimiento",
+          "keywords": ["diversión", "ocio"]
+        }
+      ]
+    },
+    {
+      "name": "Salud",
+      "icon": "💊",
+      "keywords": ["salud", "médico", "doctor", "hospital", "clínica"],
+      "subcategories": [
+        {
+          "name": "Farmacia",
+          "keywords": ["farmacia", "botica", "inkafarma", "mifarma", "medicina", "medicamento"]
+        },
+        {
+          "name": "Consulta Médica",
+          "keywords": ["consulta", "doctor", "médico", "especialista", "cita médica"]
+        },
+        {
+          "name": "Laboratorio",
+          "keywords": ["laboratorio", "análisis", "examen", "prueba"]
+        },
+        {
+          "name": "Dentista",
+          "keywords": ["dentista", "odontólogo", "dental"]
+        },
+        {
+          "name": "Óptica",
+          "keywords": ["óptica", "lentes", "anteojos", "oftalmólogo"]
+        },
+        {
+          "name": "Otros Salud",
+          "keywords": ["salud", "médico"]
+        }
+      ]
+    },
+    {
+      "name": "Educación",
+      "icon": "📚",
+      "keywords": ["educación", "estudio", "curso", "academia"],
+      "subcategories": [
+        {
+          "name": "Universidad",
+          "keywords": ["universidad", "matrícula", "pensión", "upc", "ulima", "pucp"]
+        },
+        {
+          "name": "Cursos",
+          "keywords": ["curso", "capacitación", "diplomado", "certificación", "platzi", "coursera"]
+        },
+        {
+          "name": "Libros",
+          "keywords": ["libro", "librería", "crisol", "ibero", "texto"]
+        },
+        {
+          "name": "Materiales",
+          "keywords": ["materiales", "útiles", "cuaderno", "lapicero", "tai loy"]
+        },
+        {
+          "name": "Academia",
+          "keywords": ["academia", "instituto", "preuniversitario"]
+        },
+        {
+          "name": "Otros Educación",
+          "keywords": ["educación", "estudio"]
+        }
+      ]
+    },
+    {
+      "name": "Servicios",
+      "icon": "💡",
+      "keywords": ["servicio", "pago de servicio"],
+      "subcategories": [
+        {
+          "name": "Luz",
+          "keywords": ["luz", "enel", "electricidad", "energía eléctrica"]
+        },
+        {
+          "name": "Agua",
+          "keywords": ["agua", "sedapal", "sedam", "servicio de agua"]
+        },
+        {
+          "name": "Internet",
+          "keywords": ["internet", "movistar", "claro", "entel", "wifi", "fibra óptica"]
+        },
+        {
+          "name": "Telefonía",
+          "keywords": ["teléfono", "celular", "recarga", "plan móvil", "telefonia"]
+        },
+        {
+          "name": "Cable TV",
+          "keywords": ["cable", "televisión", "movistar tv", "claro tv", "directv"]
+        },
+        {
+          "name": "Gas",
+          "keywords": ["gas", "balón", "gasoducto"]
+        },
+        {
+          "name": "Otros Servicios",
+          "keywords": ["servicio"]
+        }
+      ]
+    },
+    {
+      "name": "Compras",
+      "icon": "🛍️",
+      "keywords": ["compra", "shopping", "tienda"],
+      "subcategories": [
+        {
+          "name": "Ropa",
+          "keywords": ["ropa", "vestimenta", "zapatillas", "zapatos", "polo", "pantalón", "saga", "ripley", "zara", "h&m"]
+        },
+        {
+          "name": "Electrónica",
+          "keywords": ["electrónica", "celular", "laptop", "tablet", "computadora", "tv", "hiraoka", "curacao"]
+        },
+        {
+          "name": "Hogar",
+          "keywords": ["hogar", "casa", "muebles", "decoración", "sodimac", "promart"]
+        },
+        {
+          "name": "Belleza",
+          "keywords": ["belleza", "cosmético", "maquillaje", "perfume", "peluquería", "salón"]
+        },
+        {
+          "name": "Mascotas",
+          "keywords": ["mascota", "veterinaria", "pet", "perro", "gato", "alimento para mascota"]
+        },
+        {
+          "name": "Otros Compras",
+          "keywords": ["compra", "tienda"]
+        }
+      ]
+    },
+    {
+      "name": "Vivienda",
+      "icon": "🏠",
+      "keywords": ["vivienda", "casa", "departamento", "hogar"],
+      "subcategories": [
+        {
+          "name": "Alquiler",
+          "keywords": ["alquiler", "renta", "arriendo", "mensualidad"]
+        },
+        {
+          "name": "Hipoteca",
+          "keywords": ["hipoteca", "préstamo hipotecario", "cuota hipotecaria", "banco"]
+        },
+        {
+          "name": "Mantenimiento",
+          "keywords": ["mantenimiento", "reparación", "arreglo", "plomero", "electricista", "gasfitero"]
+        },
+        {
+          "name": "Limpieza",
+          "keywords": ["limpieza", "empleada doméstica", "servicio de limpieza", "aseadora"]
+        },
+        {
+          "name": "Condominio",
+          "keywords": ["condominio", "mantenimiento común", "cuota de mantenimiento", "administración"]
+        },
+        {
+          "name": "Seguridad",
+          "keywords": ["seguridad", "vigilancia", "alarma", "guardianía"]
+        },
+        {
+          "name": "Muebles y Decoración",
+          "keywords": ["muebles", "decoración", "cortinas", "alfombra"]
+        },
+        {
+          "name": "Otros Vivienda",
+          "keywords": ["vivienda", "hogar"]
+        }
+      ]
+    },
+    {
+      "name": "Otros",
+      "icon": "📦",
+      "keywords": ["otro", "varios", "misceláneos"],
+      "subcategories": [
+        {
+          "name": "Transferencia Personal",
+          "keywords": ["transferencia", "envío", "préstamo", "adelanto"]
+        },
+        {
+          "name": "Varios",
+          "keywords": ["varios", "otro", "misceláneo"]
+        }
+      ]
+    }
+  ]
+}

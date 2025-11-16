@@ -1,0 +1,444 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-11-15",
+  "categorias": [
+    {
+      "id": "alimentacion",
+      "nombre": "Alimentación",
+      "icono": "🍔",
+      "color": "#FF6B6B",
+      "descripcion": "Gastos relacionados con comida y bebidas",
+      "subcategorias": [
+        {
+          "id": "supermercado",
+          "nombre": "Supermercado",
+          "descripcion": "Compras de abarrotes y productos básicos"
+        },
+        {
+          "id": "restaurantes",
+          "nombre": "Restaurantes",
+          "descripcion": "Comidas fuera de casa"
+        },
+        {
+          "id": "delivery",
+          "nombre": "Delivery",
+          "descripcion": "Pedidos a domicilio"
+        },
+        {
+          "id": "cafe_snacks",
+          "nombre": "Café y Snacks",
+          "descripcion": "Cafeterías, bocaditos y meriendas"
+        },
+        {
+          "id": "bebidas",
+          "nombre": "Bebidas",
+          "descripcion": "Bebidas alcohólicas y no alcohólicas"
+        }
+      ]
+    },
+    {
+      "id": "transporte",
+      "nombre": "Transporte",
+      "icono": "🚗",
+      "color": "#4ECDC4",
+      "descripcion": "Gastos de movilidad y transporte",
+      "subcategorias": [
+        {
+          "id": "combustible",
+          "nombre": "Combustible",
+          "descripcion": "Gasolina, diesel, GNV"
+        },
+        {
+          "id": "taxi_uber",
+          "nombre": "Taxi/Uber",
+          "descripcion": "Servicios de taxi y aplicativos"
+        },
+        {
+          "id": "transporte_publico",
+          "nombre": "Transporte Público",
+          "descripcion": "Bus, metro, tren"
+        },
+        {
+          "id": "estacionamiento",
+          "nombre": "Estacionamiento",
+          "descripcion": "Parqueos y cocheras"
+        },
+        {
+          "id": "mantenimiento_vehiculo",
+          "nombre": "Mantenimiento de Vehículo",
+          "descripcion": "Revisiones, reparaciones, llantas"
+        },
+        {
+          "id": "peajes",
+          "nombre": "Peajes",
+          "descripcion": "Peajes y vías de pago"
+        }
+      ]
+    },
+    {
+      "id": "entretenimiento",
+      "nombre": "Entretenimiento",
+      "icono": "🎮",
+      "color": "#95E1D3",
+      "descripcion": "Ocio y actividades recreativas",
+      "subcategorias": [
+        {
+          "id": "cine_teatro",
+          "nombre": "Cine y Teatro",
+          "descripcion": "Entradas a cine, teatro, conciertos"
+        },
+        {
+          "id": "streaming",
+          "nombre": "Streaming",
+          "descripcion": "Netflix, Spotify, Disney+, etc."
+        },
+        {
+          "id": "videojuegos",
+          "nombre": "Videojuegos",
+          "descripcion": "Juegos, consolas, suscripciones"
+        },
+        {
+          "id": "deportes",
+          "nombre": "Deportes",
+          "descripcion": "Gimnasio, actividades deportivas"
+        },
+        {
+          "id": "hobbies",
+          "nombre": "Hobbies",
+          "descripcion": "Pasatiempos y aficiones"
+        },
+        {
+          "id": "viajes",
+          "nombre": "Viajes",
+          "descripcion": "Turismo y vacaciones"
+        }
+      ]
+    },
+    {
+      "id": "salud",
+      "nombre": "Salud",
+      "icono": "💊",
+      "color": "#F38181",
+      "descripcion": "Gastos médicos y de bienestar",
+      "subcategorias": [
+        {
+          "id": "medicinas",
+          "nombre": "Medicinas",
+          "descripcion": "Farmacia y medicamentos"
+        },
+        {
+          "id": "consultas_medicas",
+          "nombre": "Consultas Médicas",
+          "descripcion": "Doctores, especialistas"
+        },
+        {
+          "id": "examenes",
+          "nombre": "Exámenes",
+          "descripcion": "Análisis y estudios médicos"
+        },
+        {
+          "id": "dental",
+          "nombre": "Dental",
+          "descripcion": "Odontología y tratamientos dentales"
+        },
+        {
+          "id": "vision",
+          "nombre": "Visión",
+          "descripcion": "Oftalmología, lentes"
+        },
+        {
+          "id": "terapias",
+          "nombre": "Terapias",
+          "descripcion": "Psicología, fisioterapia, etc."
+        },
+        {
+          "id": "seguro_medico",
+          "nombre": "Seguro Médico",
+          "descripcion": "Pólizas y seguros de salud"
+        }
+      ]
+    },
+    {
+      "id": "servicios",
+      "nombre": "Servicios",
+      "icono": "💡",
+      "color": "#FEE140",
+      "descripcion": "Servicios básicos y suscripciones",
+      "subcategorias": [
+        {
+          "id": "luz",
+          "nombre": "Luz",
+          "descripcion": "Electricidad"
+        },
+        {
+          "id": "agua",
+          "nombre": "Agua",
+          "descripcion": "Servicio de agua potable"
+        },
+        {
+          "id": "gas",
+          "nombre": "Gas",
+          "descripcion": "Gas natural o balón"
+        },
+        {
+          "id": "internet",
+          "nombre": "Internet",
+          "descripcion": "Internet y cable"
+        },
+        {
+          "id": "telefono",
+          "nombre": "Teléfono",
+          "descripcion": "Plan móvil y telefonía"
+        },
+        {
+          "id": "limpieza",
+          "nombre": "Limpieza",
+          "descripcion": "Servicio de limpieza del hogar"
+        },
+        {
+          "id": "seguridad",
+          "nombre": "Seguridad",
+          "descripcion": "Alarmas, vigilancia"
+        },
+        {
+          "id": "otros_servicios",
+          "nombre": "Otros Servicios",
+          "descripcion": "Servicios diversos"
+        }
+      ]
+    },
+    {
+      "id": "compras",
+      "nombre": "Compras",
+      "icono": "🛍️",
+      "color": "#AA96DA",
+      "descripcion": "Compras personales y del hogar",
+      "subcategorias": [
+        {
+          "id": "ropa",
+          "nombre": "Ropa",
+          "descripcion": "Vestimenta y calzado"
+        },
+        {
+          "id": "electronica",
+          "nombre": "Electrónica",
+          "descripcion": "Gadgets, computadoras, teléfonos"
+        },
+        {
+          "id": "muebles",
+          "nombre": "Muebles",
+          "descripcion": "Mobiliario y decoración"
+        },
+        {
+          "id": "electrodomesticos",
+          "nombre": "Electrodomésticos",
+          "descripcion": "Aparatos del hogar"
+        },
+        {
+          "id": "mascotas",
+          "nombre": "Mascotas",
+          "descripcion": "Comida y cuidados de mascotas"
+        },
+        {
+          "id": "cuidado_personal",
+          "nombre": "Cuidado Personal",
+          "descripcion": "Higiene, cosmética, peluquería"
+        },
+        {
+          "id": "regalos",
+          "nombre": "Regalos",
+          "descripcion": "Obsequios y celebraciones"
+        }
+      ]
+    },
+    {
+      "id": "educacion",
+      "nombre": "Educación",
+      "icono": "📚",
+      "color": "#FCBAD3",
+      "descripcion": "Gastos educativos y de formación",
+      "subcategorias": [
+        {
+          "id": "colegiatura",
+          "nombre": "Colegiatura",
+          "descripcion": "Pensiones escolares o universitarias"
+        },
+        {
+          "id": "libros",
+          "nombre": "Libros",
+          "descripcion": "Libros y material de estudio"
+        },
+        {
+          "id": "cursos",
+          "nombre": "Cursos",
+          "descripcion": "Cursos y talleres"
+        },
+        {
+          "id": "utiles",
+          "nombre": "Útiles",
+          "descripcion": "Material escolar y de oficina"
+        },
+        {
+          "id": "uniformes",
+          "nombre": "Uniformes",
+          "descripcion": "Uniformes escolares"
+        },
+        {
+          "id": "plataformas_educativas",
+          "nombre": "Plataformas Educativas",
+          "descripcion": "Udemy, Coursera, etc."
+        }
+      ]
+    },
+    {
+      "id": "vivienda",
+      "nombre": "Vivienda",
+      "icono": "🏠",
+      "color": "#FFFFD2",
+      "descripcion": "Gastos relacionados con el hogar",
+      "subcategorias": [
+        {
+          "id": "alquiler",
+          "nombre": "Alquiler",
+          "descripcion": "Renta mensual"
+        },
+        {
+          "id": "hipoteca",
+          "nombre": "Hipoteca",
+          "descripcion": "Cuota hipotecaria"
+        },
+        {
+          "id": "mantenimiento",
+          "nombre": "Mantenimiento",
+          "descripcion": "Reparaciones y mantenimiento del hogar"
+        },
+        {
+          "id": "impuestos_vivienda",
+          "nombre": "Impuestos",
+          "descripcion": "Impuesto predial y otros"
+        },
+        {
+          "id": "seguro_hogar",
+          "nombre": "Seguro de Hogar",
+          "descripcion": "Póliza de seguro del hogar"
+        },
+        {
+          "id": "mejoras_hogar",
+          "nombre": "Mejoras",
+          "descripcion": "Renovaciones y mejoras"
+        }
+      ]
+    },
+    {
+      "id": "otros",
+      "nombre": "Otros",
+      "icono": "📦",
+      "color": "#A8DADC",
+      "descripcion": "Gastos diversos no clasificados",
+      "subcategorias": [
+        {
+          "id": "impuestos",
+          "nombre": "Impuestos",
+          "descripcion": "Impuestos diversos"
+        },
+        {
+          "id": "multas",
+          "nombre": "Multas",
+          "descripcion": "Multas y penalidades"
+        },
+        {
+          "id": "donaciones",
+          "nombre": "Donaciones",
+          "descripcion": "Caridad y donaciones"
+        },
+        {
+          "id": "cuotas_asociaciones",
+          "nombre": "Cuotas y Asociaciones",
+          "descripcion": "Membresías y cuotas"
+        },
+        {
+          "id": "legales",
+          "nombre": "Servicios Legales",
+          "descripcion": "Abogados, notarías"
+        },
+        {
+          "id": "bancarios",
+          "nombre": "Servicios Bancarios",
+          "descripcion": "Comisiones y cargos bancarios"
+        },
+        {
+          "id": "varios",
+          "nombre": "Varios",
+          "descripcion": "Gastos misceláneos"
+        }
+      ]
+    }
+  ],
+  "metodosPago": [
+    {
+      "id": "efectivo",
+      "nombre": "Efectivo",
+      "icono": "💵",
+      "descripcion": "Pago en dinero físico"
+    },
+    {
+      "id": "tarjeta_debito",
+      "nombre": "Tarjeta de Débito",
+      "icono": "💳",
+      "descripcion": "Pago con tarjeta de débito"
+    },
+    {
+      "id": "tarjeta_credito",
+      "nombre": "Tarjeta de Crédito",
+      "icono": "💳",
+      "descripcion": "Pago con tarjeta de crédito"
+    },
+    {
+      "id": "transferencia",
+      "nombre": "Transferencia",
+      "icono": "🏦",
+      "descripcion": "Transferencia bancaria"
+    },
+    {
+      "id": "yape",
+      "nombre": "Yape",
+      "icono": "📱",
+      "descripcion": "Pago con Yape (Perú)"
+    },
+    {
+      "id": "plin",
+      "nombre": "Plin",
+      "icono": "📱",
+      "descripcion": "Pago con Plin (Perú)"
+    },
+    {
+      "id": "otros",
+      "nombre": "Otros",
+      "icono": "💰",
+      "descripcion": "Otros métodos de pago"
+    }
+  ],
+  "monedas": [
+    {
+      "id": "PEN",
+      "nombre": "Soles Peruanos",
+      "simbolo": "S/",
+      "icono": "🇵🇪",
+      "codigoISO": "PEN"
+    },
+    {
+      "id": "USD",
+      "nombre": "Dólares Estadounidenses",
+      "simbolo": "$",
+      "icono": "🇺🇸",
+      "codigoISO": "USD"
+    }
+  ],
+  "categoriaEspecial": {
+    "id": "general",
+    "nombre": "Presupuesto General",
+    "icono": "💰",
+    "color": "#5d6672",
+    "descripcion": "Presupuesto general del mes (ingresos)"
+  }
+}
