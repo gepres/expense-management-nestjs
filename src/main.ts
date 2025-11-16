@@ -68,7 +68,7 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  // Configuración mejorada de Swagger para producción
+  // SOLUCIÓN COMPLETA: Configuración que funciona en producción
   SwaggerModule.setup('api/docs', app, document, {
     swaggerOptions: {
       persistAuthorization: true,
@@ -77,18 +77,40 @@ async function bootstrap() {
       showRequestDuration: true,
     },
     customSiteTitle: 'Gastos Backend API - Documentation',
-    // SOLUCIÓN: Cargar assets desde CDN para evitar problemas en producción
-    customCssUrl: [
-      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui.min.css',
-    ],
+    customfavIcon: 'https://nestjs.com/img/logo-small.svg',
+    // CSS desde CDN
+    customCss: '.swagger-ui .topbar { display: none }',
+    customCssUrl: 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui.css',
+    // JS desde CDN - IMPORTANTE: El orden importa
     customJs: [
-      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-bundle.min.js',
-      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-standalone-preset.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-bundle.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-standalone-preset.js',
     ],
+    customJsStr: `
+      // Asegurar que SwaggerUIBundle esté disponible antes de inicializar
+      window.onload = function() {
+        if (typeof SwaggerUIBundle !== 'undefined') {
+          const ui = SwaggerUIBundle({
+            dom_id: '#swagger-ui',
+            deepLinking: true,
+            presets: [
+              SwaggerUIBundle.presets.apis,
+              SwaggerUIStandalonePreset
+            ],
+            plugins: [
+              SwaggerUIBundle.plugins.DownloadUrl
+            ],
+            layout: "StandaloneLayout"
+          });
+          window.ui = ui;
+        } else {
+          console.error('SwaggerUIBundle not loaded');
+        }
+      };
+    `,
   });
 
   const port = configService.get<number>('PORT') || 3000;
-  // Escuchar en 0.0.0.0 para producción (importante para Docker/Cloud)
   await app.listen(port, '0.0.0.0');
 
   const environment = configService.get<string>('NODE_ENV') || 'development';
@@ -97,4 +119,5 @@ async function bootstrap() {
   logger.log(`🌍 Environment: ${environment}`);
   logger.log(`🔒 CORS enabled for: ${corsOrigin || '*'}`);
 }
+
 void bootstrap();
