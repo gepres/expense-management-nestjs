@@ -18,6 +18,7 @@ async function bootstrap() {
   // Global prefix
   app.setGlobalPrefix('api');
 
+  // CORS Configuration
   const corsOrigin = configService.get<string>('CORS_ORIGIN');
   app.enableCors({
     origin: corsOrigin && corsOrigin.split(','),
@@ -67,13 +68,33 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  // Configuración mejorada de Swagger para producción
+  SwaggerModule.setup('api/docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+      docExpansion: 'none',
+      filter: true,
+      showRequestDuration: true,
+    },
+    customSiteTitle: 'Gastos Backend API - Documentation',
+    // SOLUCIÓN: Cargar assets desde CDN para evitar problemas en producción
+    customCssUrl: [
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui.min.css',
+    ],
+    customJs: [
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-bundle.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-standalone-preset.min.js',
+    ],
+  });
 
   const port = configService.get<number>('PORT') || 3000;
-  await app.listen(port);
+  // Escuchar en 0.0.0.0 para producción (importante para Docker/Cloud)
+  await app.listen(port, '0.0.0.0');
 
+  const environment = configService.get<string>('NODE_ENV') || 'development';
   logger.log(`🚀 Application is running on: http://localhost:${port}`);
   logger.log(`📚 Swagger documentation: http://localhost:${port}/api/docs`);
+  logger.log(`🌍 Environment: ${environment}`);
+  logger.log(`🔒 CORS enabled for: ${corsOrigin || '*'}`);
 }
-
-bootstrap();
+void bootstrap();
