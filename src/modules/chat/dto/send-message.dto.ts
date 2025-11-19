@@ -3,7 +3,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class SendMessageDto {
   @ApiProperty({
-    description: 'Mensaje del usuario para el asistente IA',
+    description: 'Tu pregunta o mensaje para el asistente de IA. Puedes preguntar sobre tus gastos, pedir consejos financieros, análisis de patrones de gasto, etc.',
     example: '¿Cuánto he gastado en comida este mes?',
   })
   @IsString()

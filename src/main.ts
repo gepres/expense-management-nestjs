@@ -65,6 +65,9 @@ async function bootstrap() {
     .addTag('Receipts', 'Escaneo y procesamiento de comprobantes')
     .addTag('Expenses', 'Gestión de gastos')
     .addTag('Import', 'Importación de gastos desde Excel')
+    .addTag('Payment Methods', 'Gestión de métodos de pago')
+    .addTag('Currencies', 'Gestión de monedas')
+    .addTag('Health', 'Gestión de salud')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
