@@ -14,6 +14,8 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { ReceiptsModule } from './modules/receipts/receipts.module';
 import { PaymentMethodsModule } from './modules/payment-methods/payment-methods.module';
 import { CurrenciesModule } from './modules/currencies/currencies.module';
+import { ExpensesModule } from './modules/expenses/expenses.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -46,6 +48,8 @@ import { CurrenciesModule } from './modules/currencies/currencies.module';
     ReceiptsModule,
     PaymentMethodsModule,
     CurrenciesModule,
+    ExpensesModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],
