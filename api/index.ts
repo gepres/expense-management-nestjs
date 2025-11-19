@@ -79,7 +79,20 @@ async function createNestServer(expressInstance: Express) {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup('api/docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+      docExpansion: 'none',
+      filter: true,
+      showRequestDuration: true,
+    },
+    customSiteTitle: 'Gastos Backend API - Documentation',
+    customCssUrl: 'https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css',
+    customJs: [
+      'https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js',
+      'https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js',
+    ],
+  });
 
   await app.init();
 

@@ -77,6 +77,11 @@ async function bootstrap() {
       showRequestDuration: true,
     },
     customSiteTitle: 'Gastos Backend API - Documentation',
+    customCssUrl: 'https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css',
+    customJs: [
+      'https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js',
+      'https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js',
+    ],
   });
 
   const port = configService.get<number>('PORT') || 3000;
