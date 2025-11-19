@@ -1,19 +1,71 @@
-import { IsString, IsOptional, MinLength } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  MinLength,
+  IsArray,
+  ValidateNested,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
-export class CreateCategoryDto {
-  @ApiProperty({ example: 'Gimnasio' })
+export class CreateSubcategoryDto {
+  @ApiProperty({ example: 'supermercado' })
   @IsString()
   @MinLength(1)
-  name: string;
+  id: string;
 
-  @ApiPropertyOptional({ example: '🏋️' })
+  @ApiProperty({ example: 'Supermercado' })
+  @IsString()
+  @MinLength(1)
+  nombre: string;
+
+  @ApiPropertyOptional({ example: 'Compras de abarrotes y productos básicos' })
   @IsOptional()
   @IsString()
-  icon?: string;
+  descripcion?: string;
+}
 
-  @ApiPropertyOptional({ example: '#FF5733' })
+export class CreateCategoryDto {
+  @ApiProperty({ example: 'alimentacion' })
+  @IsString()
+  @MinLength(1)
+  id: string;
+
+  @ApiProperty({ example: 'Alimentación' })
+  @IsString()
+  @MinLength(1)
+  nombre: string;
+
+  @ApiPropertyOptional({ example: '🍔' })
+  @IsOptional()
+  @IsString()
+  icono?: string;
+
+  @ApiPropertyOptional({ example: '#FF6B6B' })
   @IsOptional()
   @IsString()
   color?: string;
+
+  @ApiPropertyOptional({
+    example: 'Gastos relacionados con comida y bebidas',
+  })
+  @IsOptional()
+  @IsString()
+  descripcion?: string;
+
+  @ApiPropertyOptional({
+    type: [CreateSubcategoryDto],
+    example: [
+      {
+        id: 'supermercado',
+        nombre: 'Supermercado',
+        descripcion: 'Compras de abarrotes',
+      },
+    ],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateSubcategoryDto)
+  subcategorias?: CreateSubcategoryDto[];
 }

@@ -1,19 +1,12 @@
 import { Timestamp } from 'firebase-admin/firestore';
 
-export interface Subcategory {
-  id: string;
-  nombre: string;
-  descripcion?: string;
-}
-
-export interface Category {
+export interface Currency {
   id: string;
   userId: string;
   nombre: string;
+  simbolo: string;
   icono?: string;
-  color?: string;
-  descripcion?: string;
-  subcategorias?: Subcategory[];
+  codigoISO: string;
   isDefault: boolean;
   createdAt: Timestamp;
   updatedAt?: Timestamp;

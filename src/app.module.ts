@@ -12,6 +12,8 @@ import { AnthropicModule } from './modules/anthropic/anthropic.module';
 import { UsersModule } from './modules/users/users.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { ReceiptsModule } from './modules/receipts/receipts.module';
+import { PaymentMethodsModule } from './modules/payment-methods/payment-methods.module';
+import { CurrenciesModule } from './modules/currencies/currencies.module';
 
 @Module({
   imports: [
@@ -42,6 +44,8 @@ import { ReceiptsModule } from './modules/receipts/receipts.module';
     UsersModule,
     CategoriesModule,
     ReceiptsModule,
+    PaymentMethodsModule,
+    CurrenciesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

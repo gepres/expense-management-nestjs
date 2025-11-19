@@ -17,6 +17,8 @@ import {
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { CreateSubcategoryDto } from './dto/create-subcategory.dto';
+import { UpdateSubcategoryDto } from './dto/update-subcategory.dto';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { FirebaseUser } from '../../common/interfaces/firebase-user.interface';
@@ -92,7 +94,8 @@ export class CategoriesController {
   })
   @ApiResponse({
     status: 400,
-    description: 'No se pueden eliminar categorías predeterminadas o con gastos asociados',
+    description:
+      'No se pueden eliminar categorías predeterminadas o con gastos asociados',
   })
   @ApiResponse({ status: 404, description: 'Categoría no encontrada' })
   @ApiResponse({ status: 401, description: 'No autenticado' })
@@ -102,5 +105,71 @@ export class CategoriesController {
   ) {
     await this.categoriesService.remove(user.uid, id);
     return { success: true };
+  }
+
+  // Endpoints para subcategorías
+  @Post(':categoryId/subcategories')
+  @ApiOperation({ summary: 'Agregar subcategoría a una categoría' })
+  @ApiResponse({
+    status: 201,
+    description: 'Subcategoría agregada exitosamente',
+  })
+  @ApiResponse({ status: 400, description: 'Subcategoría ya existe' })
+  @ApiResponse({ status: 404, description: 'Categoría no encontrada' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  async addSubcategory(
+    @CurrentUser() user: FirebaseUser,
+    @Param('categoryId') categoryId: string,
+    @Body() createSubcategoryDto: CreateSubcategoryDto,
+  ) {
+    console.log('categoryId', categoryId);
+    console.log('createSubcategoryDto', createSubcategoryDto);
+    return this.categoriesService.addSubcategory(
+      user.uid,
+      categoryId,
+      createSubcategoryDto,
+    );
+  }
+
+  @Patch(':categoryId/subcategories/:subcategoryId')
+  @ApiOperation({ summary: 'Actualizar subcategoría' })
+  @ApiResponse({
+    status: 200,
+    description: 'Subcategoría actualizada exitosamente',
+  })
+  @ApiResponse({ status: 404, description: 'Categoría o subcategoría no encontrada' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  async updateSubcategory(
+    @CurrentUser() user: FirebaseUser,
+    @Param('categoryId') categoryId: string,
+    @Param('subcategoryId') subcategoryId: string,
+    @Body() updateSubcategoryDto: UpdateSubcategoryDto,
+  ) {
+    return this.categoriesService.updateSubcategory(
+      user.uid,
+      categoryId,
+      subcategoryId,
+      updateSubcategoryDto,
+    );
+  }
+
+  @Delete(':categoryId/subcategories/:subcategoryId')
+  @ApiOperation({ summary: 'Eliminar subcategoría' })
+  @ApiResponse({
+    status: 200,
+    description: 'Subcategoría eliminada exitosamente',
+  })
+  @ApiResponse({ status: 404, description: 'Categoría o subcategoría no encontrada' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  async removeSubcategory(
+    @CurrentUser() user: FirebaseUser,
+    @Param('categoryId') categoryId: string,
+    @Param('subcategoryId') subcategoryId: string,
+  ) {
+    return this.categoriesService.removeSubcategory(
+      user.uid,
+      categoryId,
+      subcategoryId,
+    );
   }
 }
