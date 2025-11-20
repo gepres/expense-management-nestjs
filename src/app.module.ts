@@ -17,6 +17,7 @@ import { CurrenciesModule } from './modules/currencies/currencies.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { ImportModule } from './modules/import/import.module';
+import { ShortcutsModule } from './modules/shortcuts/shortcuts.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { ImportModule } from './modules/import/import.module';
     ExpensesModule,
     ChatModule,
     ImportModule,
+    ShortcutsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
