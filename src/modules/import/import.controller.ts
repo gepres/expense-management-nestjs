@@ -160,6 +160,10 @@ export class ImportController {
       skipDuplicates: false,
       autoCategorizate: false,
     };
+    console.log('userId', userId);
+    console.log('format', format);
+    console.log('options', options);
+    
 
     return this.importService.processFile(userId, file, format, options);
   }

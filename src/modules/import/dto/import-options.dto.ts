@@ -1,4 +1,5 @@
 import { IsEnum, IsBoolean, IsInt, Min, Max, IsOptional } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ImportOptionsDto {
@@ -8,6 +9,7 @@ export class ImportOptionsDto {
     default: 100,
   })
   @IsOptional()
+  @Transform(({ value }) => parseInt(value, 10))
   @IsInt()
   @Min(50)
   @Max(500)
@@ -19,6 +21,7 @@ export class ImportOptionsDto {
     default: true,
   })
   @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   skipDuplicates?: boolean = true;
 
@@ -28,6 +31,7 @@ export class ImportOptionsDto {
     default: false,
   })
   @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   autoCategorizate?: boolean = false;
 
@@ -37,6 +41,7 @@ export class ImportOptionsDto {
     default: false,
   })
   @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   validateOnly?: boolean = false;
 }

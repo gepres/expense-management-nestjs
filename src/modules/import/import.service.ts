@@ -75,10 +75,16 @@ export class ImportService {
       throw new BadRequestException('El archivo no contiene datos');
     }
 
+    console.log('DEBUG: Options received:', JSON.stringify(options));
+    console.log('DEBUG: Expenses parsed:', expenses.length);
+
     // Validate expenses
     const { valid, errors } = await ExpenseValidatorUtil.validateExpenses(
       expenses,
     );
+
+    console.log('DEBUG: Valid expenses:', valid.length);
+    console.log('DEBUG: Validation errors:', errors.length);
 
     if (errors.length > 0) {
       this.logger.warn(`Validation failed for ${errors.length} rows`);
@@ -90,6 +96,8 @@ export class ImportService {
 
     // If validate only, return early
     if (options.validateOnly) {
+      
+    console.log('paso validateOnly');
       return {
         success: errors.length === 0,
         totalRows: expenses.length,
@@ -100,10 +108,13 @@ export class ImportService {
       };
     }
 
+    console.log('paso');
+    
+
     // Auto-categorize if requested
-    if (options.autoCategorizate) {
-      await this.autoCategorizateExpenses(userId, valid);
-    }
+    // if (options.autoCategorizate) {
+    //   await this.autoCategorizateExpenses(userId, valid);
+    // }
 
     // Create import record
     const importRecord = await this.createImportRecord(
@@ -114,12 +125,17 @@ export class ImportService {
     );
 
     // Import valid expenses
+    this.logger.log(`Valid expenses to import: ${valid.length}`);
+    
     const imported = await this.importExpenses(
       userId,
       valid,
       options,
       importRecord.id,
     );
+
+    this.logger.log(`Imported count: ${imported}`);
+    this.logger.log(`Skipped count: ${expenses.length - imported}`);
 
     // Update import record
     await this.updateImportRecord(importRecord.id, userId, {
@@ -168,6 +184,7 @@ export class ImportService {
     for (let i = 0; i < expenses.length; i += batchSize) {
       const batch = firestore.batch();
       const chunk = expenses.slice(i, i + batchSize);
+      let batchCount = 0;
 
       for (const expense of chunk) {
         // Check for duplicates if requested
@@ -177,6 +194,7 @@ export class ImportService {
             expense,
           );
           if (isDuplicate) {
+            this.logger.debug(`Skipping duplicate: ${expense.concepto} - ${expense.monto}`);
             continue;
           }
         }
@@ -200,12 +218,15 @@ export class ImportService {
 
         batch.set(docRef, expenseData);
         imported++;
+        batchCount++;
       }
 
-      await batch.commit();
-      this.logger.log(
-        `Imported batch ${Math.floor(i / batchSize) + 1}: ${chunk.length} expenses`,
-      );
+      if (batchCount > 0) {
+        await batch.commit();
+        this.logger.log(
+          `Imported batch ${Math.floor(i / batchSize) + 1}: ${batchCount} expenses`,
+        );
+      }
     }
 
     return imported;
@@ -352,6 +373,9 @@ Responde en formato JSON con un array de sugerencias, cada una con: type, messag
       .doc(userId)
       .collection('imports');
 
+     console.log('importRef',importRef);
+      
+
     const record = {
       userId,
       fileName,
@@ -414,7 +438,7 @@ Responde en formato JSON con un array de sugerencias, cada una con: type, messag
         },
         {
           fecha: formatDate(yesterday),
-          monto: 120.00,
+          monto: 20.00,
           concepto: 'Combustible',
           categoria: 'Transporte',
           subcategoria: 'Gasolina',
@@ -425,7 +449,7 @@ Responde en formato JSON con un array de sugerencias, cada una con: type, messag
         },
         {
           fecha: formatDate(yesterday),
-          monto: 29.90,
+          monto: 40,
           concepto: 'Suscripción Netflix',
           categoria: 'Entretenimiento',
           subcategoria: 'Streaming',
