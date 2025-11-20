@@ -51,25 +51,37 @@ export class ExpensesController {
     @Query() filter: GetExpensesFilterDto,
     @Res() res: Response,
   ) {
-    const userId = req.user.uid;
-    const result = await this.expensesService.exportExpenses(userId, filter);
+    try {
+      const userId = req.user.uid;
+      console.log(`Exporting expenses for user ${userId}, filter:`, filter);
 
-    if (filter.format === 'json') {
-      return res.json(result);
-    }
+      const result = await this.expensesService.exportExpenses(userId, filter);
 
-    if (filter.format === 'excel') {
-      const rawBuffer = result as unknown as ArrayBuffer;
-      const buffer = Buffer.from(rawBuffer);
-      const filename = `gastos_${filter.year}_${filter.month}.xlsx`;
+      if (filter.format === 'json') {
+        return res.json(result);
+      }
 
-      res.set({
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'Content-Length': buffer.length.toString(),
+      if (filter.format === 'excel') {
+        const rawBuffer = result as unknown as ArrayBuffer;
+        const buffer = Buffer.from(rawBuffer);
+        const filename = `gastos_${filter.year}_${filter.month}.xlsx`;
+
+        res.set({
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Content-Length': buffer.length.toString(),
+        });
+
+        res.end(buffer);
+      }
+    } catch (error) {
+      console.error('Error exporting expenses:', error);
+      res.status(500).json({
+        statusCode: 500,
+        message: 'Error interno al exportar gastos',
+        error: error.message,
+        details: error.code === 9 ? 'Falta índice compuesto en Firestore' : undefined, // Code 9 is FAILED_PRECONDITION
       });
-
-      res.end(buffer);
     }
   }
 }
