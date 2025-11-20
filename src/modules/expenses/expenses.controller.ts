@@ -59,16 +59,17 @@ export class ExpensesController {
     }
 
     if (filter.format === 'excel') {
-      const buffer = result as unknown as Buffer;
+      const rawBuffer = result as unknown as ArrayBuffer;
+      const buffer = Buffer.from(rawBuffer);
       const filename = `gastos_${filter.year}_${filter.month}.xlsx`;
 
       res.set({
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="${filename}"`,
-        'Content-Length': buffer.length,
+        'Content-Length': buffer.length.toString(),
       });
 
-      res.send(buffer);
+      res.end(buffer);
     }
   }
 }
