@@ -25,7 +25,9 @@ import {
 import type { Response } from 'express';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 import { ImportService } from './import.service';
-import { UploadFileDto, ImportOptionsDto } from './dto/import-options.dto';
+import { ValidateFileDto } from './dto/validate-file.dto';
+import { AnalyzeExpensesDto } from './dto/analyze-expenses.dto';
+import { UploadExpensesDto } from './dto/upload-expenses.dto';
 
 @ApiTags('Import')
 @ApiBearerAuth('firebase-auth')
@@ -34,92 +36,16 @@ import { UploadFileDto, ImportOptionsDto } from './dto/import-options.dto';
 export class ImportController {
   constructor(private readonly importService: ImportService) {}
 
-  @Post('upload')
-  @UseInterceptors(FileInterceptor('file'))
-  @ApiConsumes('multipart/form-data')
-  @ApiOperation({
-    summary: 'Importar gastos desde archivo',
-    description:
-      'Sube un archivo Excel o JSON con gastos para importarlos masivamente. El archivo será validado, procesado por lotes y los gastos se guardarán en Firestore. Opcionalmente, puede usar IA para categorizar automáticamente.',
-  })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      required: ['file', 'format'],
-      properties: {
-        file: {
-          type: 'string',
-          format: 'binary',
-          description: 'Archivo Excel (.xlsx, .xls) o JSON',
-        },
-        format: {
-          type: 'string',
-          enum: ['excel', 'json'],
-          description: 'Formato del archivo (opcional)',
-        },
-        batchSize: {
-          type: 'number',
-          description: 'Tamaño del lote (50-500)',
-          default: 100,
-        },
-        skipDuplicates: {
-          type: 'boolean',
-          description: 'Omitir duplicados',
-          default: true,
-        },
-        autoCategorizate: {
-          type: 'boolean',
-          description: 'Categorizar automáticamente con IA',
-          default: false,
-        },
-        validateOnly: {
-          type: 'boolean',
-          description: 'Solo validar sin importar',
-          default: false,
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Archivo procesado exitosamente',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean' },
-        totalRows: { type: 'number' },
-        imported: { type: 'number' },
-        skipped: { type: 'number' },
-        errors: { type: 'array' },
-        warnings: { type: 'array' },
-        aiSuggestions: { type: 'array' },
-        importId: { type: 'string' },
-      },
-    },
-  })
-  @ApiResponse({ status: 400, description: 'Archivo inválido o demasiado grande' })
-  @ApiResponse({ status: 401, description: 'No autorizado' })
-  async uploadFile(
-    @Req() req: any,
-    @UploadedFile() file: Express.Multer.File,
-    @Body() dto: UploadFileDto,
-  ) {
-    if (!file) {
-      throw new BadRequestException('No se proporcionó ningún archivo');
-    }
-
-    const userId = req.user.uid;
-    const format = this.detectFormat(file, dto.format);
-    return this.importService.processFile(userId, file, format, dto);
-  }
-
+  /**
+   * Step 1: Validate file and return array of valid expenses
+   */
   @Post('validate')
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
-    summary: 'Validar archivo sin importar',
+    summary: 'Paso 1: Validar archivo',
     description:
-      'Valida un archivo Excel o JSON sin importar los datos. Útil para verificar la estructura y detectar errores antes de la importación real.',
+      'Valida un archivo Excel o JSON y retorna un array de gastos válidos. El frontend debe almacenar este array para enviarlo al endpoint /analyze.',
   })
   @ApiBody({
     schema: {
@@ -129,11 +55,12 @@ export class ImportController {
         file: {
           type: 'string',
           format: 'binary',
+          description: 'Archivo Excel (.xlsx, .xls) o JSON',
         },
         format: {
           type: 'string',
           enum: ['excel', 'json'],
-          description: 'Formato del archivo (opcional)',
+          description: 'Formato del archivo (opcional, se detecta automáticamente)',
         },
       },
     },
@@ -141,87 +68,114 @@ export class ImportController {
   @ApiResponse({
     status: 200,
     description: 'Validación completada',
-  })
-  @ApiResponse({ status: 400, description: 'Archivo inválido' })
-  async validateFile(
-    @Req() req: any,
-    @UploadedFile() file: Express.Multer.File,
-    @Body() body: { format?: 'excel' | 'json' },
-  ) {
-    if (!file) {
-      throw new BadRequestException('No se proporcionó ningún archivo');
-    }
-
-    const userId = req.user.uid;
-    const format = this.detectFormat(file, body.format);
-    const options: ImportOptionsDto = {
-      validateOnly: true,
-      batchSize: 100,
-      skipDuplicates: false,
-      autoCategorizate: false,
-    };
-    console.log('userId', userId);
-    console.log('format', format);
-    console.log('options', options);
-    
-
-    return this.importService.processFile(userId, file, format, options);
-  }
-
-  @Post('preview')
-  @UseInterceptors(FileInterceptor('file'))
-  @ApiConsumes('multipart/form-data')
-  @ApiOperation({
-    summary: 'Vista previa de datos del archivo',
-    description:
-      'Obtiene una vista previa de los primeros registros del archivo sin importarlos. Muestra cómo se interpretarán los datos.',
-  })
-  @ApiBody({
     schema: {
       type: 'object',
-      required: ['file', 'format'],
       properties: {
-        file: {
-          type: 'string',
-          format: 'binary',
+        success: { type: 'boolean' },
+        totalRows: { type: 'number' },
+        validCount: { type: 'number' },
+        invalidCount: { type: 'number' },
+        data: {
+          type: 'array',
+          description: 'Array de gastos válidos para enviar a /analyze',
         },
-        format: {
-          type: 'string',
-          enum: ['excel', 'json'],
-        },
+        errors: { type: 'array' },
+        warnings: { type: 'array' },
       },
     },
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Vista previa generada',
-  })
-  async previewFile(
-    @Req() req: any,
+  @ApiResponse({ status: 400, description: 'Archivo inválido o demasiado grande' })
+  async validateFile(
     @UploadedFile() file: Express.Multer.File,
-    @Body() body: { format?: 'excel' | 'json' },
+    @Body() dto: ValidateFileDto,
   ) {
     if (!file) {
       throw new BadRequestException('No se proporcionó ningún archivo');
     }
 
-    const userId = req.user.uid;
-    const format = this.detectFormat(file, body.format);
-    const options: ImportOptionsDto = {
-      validateOnly: true,
-      batchSize: 10, // Solo preview de 10 registros
-      skipDuplicates: false,
-      autoCategorizate: false,
-    };
-
-    return this.importService.processFile(userId, file, format, options);
+    const format = this.detectFormat(file, dto.format);
+    return this.importService.validateFile(file, format);
   }
 
+  /**
+   * Step 2: Analyze expenses with options
+   */
+  @Post('analyze')
+  @ApiOperation({
+    summary: 'Paso 2: Analizar y mejorar gastos',
+    description:
+      'Recibe el array de gastos validados, aplica las opciones (omitir duplicados, auto-categorizar) y retorna el array mejorado. El frontend debe almacenar este array para enviarlo al endpoint /upload.',
+  })
+  @ApiBody({ type: AnalyzeExpensesDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Análisis completado',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        totalProcessed: { type: 'number' },
+        data: {
+          type: 'array',
+          description: 'Array de gastos mejorados para enviar a /upload',
+        },
+        duplicatesRemoved: { type: 'number' },
+        categorized: { type: 'number' },
+        aiSuggestions: { type: 'array' },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Datos inválidos' })
+  async analyzeExpenses(
+    @Req() req: any,
+    @Body() dto: AnalyzeExpensesDto,
+  ) {
+    const userId = req.user.uid;
+    return this.importService.analyzeExpenses(userId, dto.expenses, dto.options);
+  }
+
+  /**
+   * Step 3: Upload expenses to database
+   */
+  @Post('upload')
+  @ApiOperation({
+    summary: 'Paso 3: Guardar gastos en base de datos',
+    description:
+      'Recibe el array de gastos finales (validados y mejorados) y los guarda en Firestore. Retorna el resultado de la importación.',
+  })
+  @ApiBody({ type: UploadExpensesDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Importación completada',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        totalRows: { type: 'number' },
+        imported: { type: 'number' },
+        failed: { type: 'number' },
+        importId: { type: 'string' },
+        errors: { type: 'array' },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Datos inválidos' })
+  async uploadExpenses(
+    @Req() req: any,
+    @Body() dto: UploadExpensesDto,
+  ) {
+    const userId = req.user.uid;
+    return this.importService.uploadExpenses(userId, dto.expenses, dto.batchSize);
+  }
+
+  /**
+   * Get import history
+   */
   @Get('history')
   @ApiOperation({
     summary: 'Obtener historial de importaciones',
     description:
-      'Obtiene el historial de las últimas 50 importaciones realizadas por el usuario, incluyendo estadísticas y errores.',
+      'Obtiene el historial de las últimas 50 importaciones realizadas por el usuario.',
   })
   @ApiResponse({
     status: 200,
@@ -244,15 +198,17 @@ export class ImportController {
       },
     },
   })
-  @ApiResponse({ status: 401, description: 'No autorizado' })
   async getHistory(@Req() req: any) {
     const userId = req.user.uid;
     return this.importService.getImportHistory(userId);
   }
 
+  /**
+   * Download template
+   */
   @Get('template')
   @ApiOperation({
-    summary: 'Descargar plantilla (Excel o JSON)',
+    summary: 'Descargar plantilla',
     description:
       'Descarga una plantilla con el formato correcto y datos de ejemplo. Soporta Excel (por defecto) y JSON.',
   })
@@ -265,14 +221,6 @@ export class ImportController {
   @ApiResponse({
     status: 200,
     description: 'Plantilla descargada exitosamente',
-    content: {
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
-        schema: { type: 'string', format: 'binary' },
-      },
-      'application/json': {
-        schema: { type: 'array', items: { type: 'object' } },
-      },
-    },
   })
   async downloadTemplate(
     @Res() res: Response,
@@ -297,99 +245,17 @@ export class ImportController {
     res.status(HttpStatus.OK).send(template);
   }
 
-  @Post('analyze')
-  @UseInterceptors(FileInterceptor('file'))
-  @ApiConsumes('multipart/form-data')
-  @ApiOperation({
-    summary: 'Analizar archivo con IA',
-    description:
-      'Analiza el archivo con IA para obtener sugerencias de mejora, detectar anomalías y recomendar categorizaciones. No importa los datos.',
-  })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      required: ['file', 'format'],
-      properties: {
-        file: {
-          type: 'string',
-          format: 'binary',
-        },
-        format: {
-          type: 'string',
-          enum: ['excel', 'json'],
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Análisis completado',
-    schema: {
-      type: 'object',
-      properties: {
-        aiSuggestions: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              type: { type: 'string' },
-              message: { type: 'string' },
-              affectedRows: { type: 'array' },
-              suggestion: { type: 'string' },
-              confidence: { type: 'number' },
-            },
-          },
-        },
-        summary: { type: 'object' },
-      },
-    },
-  })
-  async analyzeFile(
-    @Req() req: any,
-    @UploadedFile() file: Express.Multer.File,
-    @Body() body: { format?: 'excel' | 'json' },
-  ) {
-    if (!file) {
-      throw new BadRequestException('No se proporcionó ningún archivo');
-    }
-
-    const userId = req.user.uid;
-    const format = this.detectFormat(file, body.format);
-    const options: ImportOptionsDto = {
-      validateOnly: true,
-      batchSize: 100,
-      skipDuplicates: false,
-      autoCategorizate: false,
-    };
-
-    const result = await this.importService.processFile(
-      userId,
-      file,
-      format,
-      options,
-    );
-
-    return {
-      aiSuggestions: result.aiSuggestions,
-      summary: {
-        totalRows: result.totalRows,
-        errors: result.errors.length,
-        warnings: result.warnings.length,
-      },
-    };
-  }
-
-
+  /**
+   * Detect file format from mimetype or extension
+   */
   private detectFormat(
     file: Express.Multer.File,
     requestedFormat?: 'excel' | 'json',
   ): 'excel' | 'json' {
-    // 1. Si se especificó formato explícito, usarlo
     if (requestedFormat) {
       return requestedFormat;
     }
 
-    // 2. Intentar detectar por mimetype
     const mime = file.mimetype;
     if (
       mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
@@ -402,7 +268,6 @@ export class ImportController {
       return 'json';
     }
 
-    // 3. Intentar detectar por extensión
     const originalName = file.originalname.toLowerCase();
     if (originalName.endsWith('.xlsx') || originalName.endsWith('.xls')) {
       return 'excel';
@@ -412,7 +277,6 @@ export class ImportController {
       return 'json';
     }
 
-    // 4. Si no se puede detectar, lanzar error
     throw new BadRequestException(
       'No se pudo determinar el formato del archivo. Por favor especifica el formato (excel o json) o usa un archivo con extensión válida.',
     );

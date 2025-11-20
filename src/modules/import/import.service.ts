@@ -7,9 +7,11 @@ import { FirebaseService } from '../firebase/firebase.service';
 import { AnthropicService } from '../anthropic/anthropic.service';
 import { CategoriesService } from '../categories/categories.service';
 import { ImportExpenseDto } from './dto/import-expense.dto';
-import { ImportOptionsDto } from './dto/import-options.dto';
+import { AnalyzeOptionsDto } from './dto/analyze-expenses.dto';
 import {
-  ImportResult,
+  ValidateResult,
+  AnalyzeResult,
+  UploadResult,
   ImportError,
   AISuggestion,
   ImportRecord,
@@ -24,6 +26,18 @@ export class ImportService {
   private readonly MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
   private readonly MAX_ROWS = 5000;
 
+  /**
+   * Normalize text: lowercase, remove accents, replace spaces with underscore
+   */
+  private normalizeText(text: string | undefined): string | undefined {
+    if (!text) return text;
+    return text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '_');
+  }
+
   constructor(
     private readonly firebaseService: FirebaseService,
     private readonly anthropicService: AnthropicService,
@@ -31,14 +45,12 @@ export class ImportService {
   ) {}
 
   /**
-   * Process uploaded file (Excel or JSON)
+   * Step 1: Validate file and return array of valid expenses
    */
-  async processFile(
-    userId: string,
+  async validateFile(
     file: Express.Multer.File,
     format: 'excel' | 'json',
-    options: ImportOptionsDto,
-  ): Promise<ImportResult> {
+  ): Promise<ValidateResult> {
     // Validate file size
     if (file.size > this.MAX_FILE_SIZE) {
       throw new BadRequestException(
@@ -46,9 +58,7 @@ export class ImportService {
       );
     }
 
-    this.logger.log(
-      `Processing ${format} file for user ${userId}: ${file.originalname}`,
-    );
+    this.logger.log(`Validating ${format} file: ${file.originalname}`);
 
     // Parse file
     let expenses: ImportExpenseDto[];
@@ -75,265 +85,273 @@ export class ImportService {
       throw new BadRequestException('El archivo no contiene datos');
     }
 
-    console.log('DEBUG: Options received:', JSON.stringify(options));
-    console.log('DEBUG: Expenses parsed:', expenses.length);
-
     // Validate expenses
-    const { valid, errors } = await ExpenseValidatorUtil.validateExpenses(
-      expenses,
-    );
-
-    console.log('DEBUG: Valid expenses:', valid.length);
-    console.log('DEBUG: Validation errors:', errors.length);
-
-    if (errors.length > 0) {
-      this.logger.warn(`Validation failed for ${errors.length} rows`);
-      this.logger.debug(JSON.stringify(errors.slice(0, 5), null, 2));
-    }
+    const { valid, errors } = await ExpenseValidatorUtil.validateExpenses(expenses);
 
     // Generate warnings
     const warnings = ExpenseValidatorUtil.generateWarnings(valid);
 
-    // If validate only, return early
-    if (options.validateOnly) {
-      
-    console.log('paso validateOnly');
-      return {
-        success: errors.length === 0,
-        totalRows: expenses.length,
-        imported: 0,
-        skipped: expenses.length - valid.length,
-        errors,
-        warnings,
-      };
-    }
-
-    console.log('paso');
-    
-
-    // Auto-categorize if requested
-    // if (options.autoCategorizate) {
-    //   await this.autoCategorizateExpenses(userId, valid);
-    // }
-
-    // Create import record
-    const importRecord = await this.createImportRecord(
-      userId,
-      file.originalname,
-      format,
-      expenses.length,
-    );
-
-    // Import valid expenses
-    this.logger.log(`Valid expenses to import: ${valid.length}`);
-    
-    const imported = await this.importExpenses(
-      userId,
-      valid,
-      options,
-      importRecord.id,
-    );
-
-    this.logger.log(`Imported count: ${imported}`);
-    this.logger.log(`Skipped count: ${expenses.length - imported}`);
-
-    // Update import record
-    await this.updateImportRecord(importRecord.id, userId, {
-      imported,
-      skipped: expenses.length - imported,
-      status: 'completed',
-      errors,
-      completedAt: Timestamp.now(),
-    });
-
-    // Generate AI suggestions
-    let aiSuggestions: AISuggestion[] | undefined;
-    try {
-      aiSuggestions = await this.analyzeImportWithAI(valid, errors);
-    } catch (error) {
-      this.logger.error('Error generating AI suggestions', error);
-    }
+    this.logger.log(`Validation complete: ${valid.length} valid, ${errors.length} errors`);
 
     return {
-      success: true,
+      success: errors.length === 0,
       totalRows: expenses.length,
-      imported,
-      skipped: expenses.length - imported,
+      validCount: valid.length,
+      invalidCount: expenses.length - valid.length,
+      data: valid,
       errors,
       warnings,
-      aiSuggestions,
-      importId: importRecord.id,
     };
   }
 
   /**
-   * Import validated expenses to Firestore
+   * Step 2: Analyze expenses with options (skip duplicates, auto-categorize)
    */
-  private async importExpenses(
+  async analyzeExpenses(
     userId: string,
     expenses: ImportExpenseDto[],
-    options: ImportOptionsDto,
-    importId: string,
-  ): Promise<number> {
+    options: AnalyzeOptionsDto,
+  ): Promise<AnalyzeResult> {
+    this.logger.log(`Analyzing ${expenses.length} expenses for user ${userId}`);
+
+    let processedExpenses = [...expenses];
+    let duplicatesRemoved = 0;
+    let categorized = 0;
+
+    // Skip duplicates if requested
+    if (options.skipDuplicates) {
+      const { filtered, removed } = await this.filterDuplicates(userId, processedExpenses);
+      processedExpenses = filtered;
+      duplicatesRemoved = removed;
+      this.logger.log(`Removed ${duplicatesRemoved} duplicates`);
+    }
+
+    // Auto-categorize with AI if requested
+    if (options.autoCategorizate) {
+      categorized = await this.autoCategorizeExpenses(userId, processedExpenses);
+      this.logger.log(`Categorized ${categorized} expenses with AI`);
+    }
+
+    // Generate AI suggestions for improvement
+    let aiSuggestions: AISuggestion[] | undefined;
+    try {
+      aiSuggestions = await this.generateAISuggestions(processedExpenses);
+    } catch (error) {
+      this.logger.error('Error generating AI suggestions', error);
+    }
+
+    // Normalize categoria, subcategoria, metodoPago (lowercase, no accents)
+    const normalizedExpenses = processedExpenses.map(expense => ({
+      ...expense,
+      categoria: this.normalizeText(expense.categoria),
+      subcategoria: this.normalizeText(expense.subcategoria),
+      metodoPago: this.normalizeText(expense.metodoPago),
+    }));
+
+    return {
+      success: true,
+      totalProcessed: normalizedExpenses.length,
+      data: normalizedExpenses,
+      duplicatesRemoved,
+      categorized,
+      aiSuggestions,
+    };
+  }
+
+  /**
+   * Step 3: Upload expenses to Firestore
+   */
+  async uploadExpenses(
+    userId: string,
+    expenses: ImportExpenseDto[],
+    batchSize: number = 100,
+  ): Promise<UploadResult> {
+    this.logger.log(`Uploading ${expenses.length} expenses for user ${userId}`);
+
     const firestore = this.firebaseService.getFirestore();
     const gastosRef = firestore.collection('gastos');
-    const batchSize = options.batchSize || 100;
+    const errors: ImportError[] = [];
     let imported = 0;
+
+    // Create import record
+    const importRecord = await this.createImportRecord(
+      userId,
+      'import_from_app',
+      'json',
+      expenses.length,
+    );
 
     // Process in batches
     for (let i = 0; i < expenses.length; i += batchSize) {
       const batch = firestore.batch();
       const chunk = expenses.slice(i, i + batchSize);
-      let batchCount = 0;
 
-      for (const expense of chunk) {
-        // Check for duplicates if requested
-        if (options.skipDuplicates) {
-          const isDuplicate = await this.checkDuplicate(
+      for (let j = 0; j < chunk.length; j++) {
+        const expense = chunk[j];
+        const rowNumber = i + j + 1;
+
+        try {
+          const docRef = gastosRef.doc();
+          const expenseData = {
             userId,
-            expense,
-          );
-          if (isDuplicate) {
-            this.logger.debug(`Skipping duplicate: ${expense.concepto} - ${expense.monto}`);
-            continue;
-          }
+            fecha: Timestamp.fromDate(new Date(expense.fecha)),
+            monto: expense.monto,
+            concepto: expense.concepto,
+            categoria: expense.categoria || 'Sin categoría',
+            subcategoria: expense.subcategoria || null,
+            metodoPago: expense.metodoPago || 'Efectivo',
+            moneda: expense.moneda || 'PEN',
+            comercio: expense.comercio || null,
+            descripcion: expense.descripcion || null,
+            importId: importRecord.id,
+            createdAt: Timestamp.now(),
+          };
+
+          batch.set(docRef, expenseData);
+          imported++;
+        } catch (error) {
+          errors.push({
+            row: rowNumber,
+            field: 'general',
+            message: error.message,
+          });
         }
-
-        // Create expense document
-        const docRef = gastosRef.doc();
-        const expenseData = {
-          userId,
-          fecha: Timestamp.fromDate(new Date(expense.fecha)),
-          monto: expense.monto,
-          concepto: expense.concepto,
-          categoria: expense.categoria || 'Sin categoría',
-          subcategoria: expense.subcategoria,
-          metodoPago: expense.metodoPago || 'Efectivo',
-          moneda: expense.moneda || 'PEN',
-          comercio: expense.comercio,
-          descripcion: expense.descripcion,
-          importId,
-          createdAt: Timestamp.now(),
-        };
-
-        batch.set(docRef, expenseData);
-        imported++;
-        batchCount++;
       }
 
-      if (batchCount > 0) {
+      try {
         await batch.commit();
-        this.logger.log(
-          `Imported batch ${Math.floor(i / batchSize) + 1}: ${batchCount} expenses`,
-        );
+        this.logger.log(`Committed batch ${Math.floor(i / batchSize) + 1}: ${chunk.length} expenses`);
+      } catch (error) {
+        this.logger.error(`Batch commit failed: ${error.message}`);
+        // Add errors for all items in failed batch
+        for (let j = 0; j < chunk.length; j++) {
+          errors.push({
+            row: i + j + 1,
+            field: 'batch',
+            message: `Error en batch: ${error.message}`,
+          });
+        }
+        imported -= chunk.length;
       }
     }
 
-    return imported;
+    // Update import record
+    await this.updateImportRecord(importRecord.id, userId, {
+      imported,
+      skipped: expenses.length - imported,
+      status: errors.length === 0 ? 'completed' : 'failed',
+      errors,
+      completedAt: Timestamp.now(),
+    });
+
+    this.logger.log(`Upload complete: ${imported} imported, ${errors.length} failed`);
+
+    return {
+      success: errors.length === 0,
+      totalRows: expenses.length,
+      imported,
+      failed: expenses.length - imported,
+      importId: importRecord.id,
+      errors,
+    };
   }
 
   /**
-   * Check if expense is duplicate
+   * Filter duplicates by checking against existing expenses in DB
    */
-  private async checkDuplicate(
-    userId: string,
-    expense: ImportExpenseDto,
-  ): Promise<boolean> {
-    const firestore = this.firebaseService.getFirestore();
-    const expenseDate = Timestamp.fromDate(new Date(expense.fecha));
-
-    const snapshot = await firestore
-      .collection('gastos')
-      .where('userId', '==', userId)
-      .where('fecha', '==', expenseDate)
-      .where('monto', '==', expense.monto)
-      .where('concepto', '==', expense.concepto)
-      .limit(1)
-      .get();
-
-    return !snapshot.empty;
-  }
-
-  /**
-   * Auto-categorize expenses using AI
-   */
-  private async autoCategorizateExpenses(
+  private async filterDuplicates(
     userId: string,
     expenses: ImportExpenseDto[],
-  ): Promise<void> {
+  ): Promise<{ filtered: ImportExpenseDto[]; removed: number }> {
+    const firestore = this.firebaseService.getFirestore();
+    const filtered: ImportExpenseDto[] = [];
+    let removed = 0;
+
+    for (const expense of expenses) {
+      const expenseDate = Timestamp.fromDate(new Date(expense.fecha));
+
+      const snapshot = await firestore
+        .collection('gastos')
+        .where('userId', '==', userId)
+        .where('fecha', '==', expenseDate)
+        .where('monto', '==', expense.monto)
+        .where('concepto', '==', expense.concepto)
+        .limit(1)
+        .get();
+
+      if (snapshot.empty) {
+        filtered.push(expense);
+      } else {
+        removed++;
+      }
+    }
+
+    return { filtered, removed };
+  }
+
+  /**
+   * Auto-categorize expenses without category using AI
+   */
+  private async autoCategorizeExpenses(
+    userId: string,
+    expenses: ImportExpenseDto[],
+  ): Promise<number> {
     const categories = await this.categoriesService.getCategoryNames(userId);
+    let categorized = 0;
 
     for (const expense of expenses) {
       if (!expense.categoria) {
         try {
-          const suggestedCategory =
-            await this.anthropicService.categorizeExpense(
-              expense.concepto,
-              expense.monto,
-              expense.comercio,
-              categories,
-            );
+          const suggestedCategory = await this.anthropicService.categorizeExpense(
+            expense.concepto,
+            expense.monto,
+            expense.comercio,
+            categories,
+          );
 
           if (categories.includes(suggestedCategory)) {
             expense.categoria = suggestedCategory;
+            categorized++;
           }
         } catch (error) {
-          this.logger.error(
-            `Error auto-categorizing expense: ${expense.concepto}`,
-            error,
-          );
+          this.logger.error(`Error auto-categorizing: ${expense.concepto}`, error);
         }
       }
     }
+
+    return categorized;
   }
 
   /**
-   * Analyze import with AI for suggestions
+   * Generate AI suggestions for data improvement
    */
-  async analyzeImportWithAI(
+  private async generateAISuggestions(
     expenses: ImportExpenseDto[],
-    errors: ImportError[],
   ): Promise<AISuggestion[]> {
     const suggestions: AISuggestion[] = [];
 
-    // Prepare data summary for AI
     const summary = {
       totalExpenses: expenses.length,
-      totalErrors: errors.length,
       withoutCategory: expenses.filter((e) => !e.categoria).length,
       withoutPaymentMethod: expenses.filter((e) => !e.metodoPago).length,
-      dateRange: {
-        min: Math.min(...expenses.map((e) => new Date(e.fecha).getTime())),
-        max: Math.max(...expenses.map((e) => new Date(e.fecha).getTime())),
-      },
       sampleExpenses: expenses.slice(0, 5),
-      sampleErrors: errors.slice(0, 5),
     };
 
-    const prompt = `Analiza los siguientes datos de importación de gastos y proporciona sugerencias para mejorar la calidad de los datos:
+    const prompt = `Analiza los siguientes datos de importación de gastos y proporciona sugerencias breves para mejorar la calidad:
 
 ${JSON.stringify(summary, null, 2)}
 
-Proporciona sugerencias en las siguientes categorías:
-1. Categorización faltante
-2. Posibles duplicados
-3. Problemas de formato
-4. Datos faltantes importantes
-5. Anomalías detectadas
-
-Responde en formato JSON con un array de sugerencias, cada una con: type, message, affectedRows (array de números), suggestion, confidence (0-1).`;
+Proporciona máximo 3 sugerencias en formato JSON con un array, cada una con: type (category|duplicate|format|missing|anomaly), message, affectedRows (array de números), suggestion, confidence (0-1).`;
 
     try {
       const response = await this.anthropicService.sendMessage(prompt, []);
-      
-      // Parse AI response
       const jsonMatch = response.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         const aiSuggestions = JSON.parse(jsonMatch[0]);
         suggestions.push(...aiSuggestions);
       }
     } catch (error) {
-      this.logger.error('Error analyzing import with AI', error);
+      this.logger.error('Error generating AI suggestions', error);
     }
 
     return suggestions;
@@ -372,9 +390,6 @@ Responde en formato JSON con un array de sugerencias, cada una con: type, messag
       .collection('users')
       .doc(userId)
       .collection('imports');
-
-     console.log('importRef',importRef);
-      
 
     const record = {
       userId,
@@ -421,56 +436,56 @@ Responde en formato JSON con un array de sugerencias, cada una con: type, messag
       const today = new Date();
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
-      
+
       const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
       const exampleData = [
         {
           fecha: formatDate(today),
-          monto: 45.50,
+          monto: 45.5,
           concepto: 'Almuerzo ejecutivo',
-          categoria: 'Alimentación',
-          subcategoria: 'Restaurantes',
-          metodoPago: 'Tarjeta Crédito',
+          categoria: 'alimentacion',
+          subcategoria: 'restaurantes',
+          metodoPago: 'tarjeta credito',
           moneda: 'PEN',
           comercio: 'Restaurante El Buen Sabor',
           descripcion: 'Almuerzo con cliente',
         },
         {
           fecha: formatDate(yesterday),
-          monto: 20.00,
-          concepto: 'Combustible',
-          categoria: 'Transporte',
-          subcategoria: 'Gasolina',
-          metodoPago: 'Efectivo',
+          monto: 20.0,
+          concepto: 'combustible',
+          categoria: 'transporte',
+          subcategoria: 'gasolina',
+          metodoPago: 'efectivo',
           moneda: 'PEN',
-          comercio: 'Grifo Primax',
+          comercio: 'grifo primax',
           descripcion: 'Llenado de tanque',
         },
         {
           fecha: formatDate(yesterday),
           monto: 40,
-          concepto: 'Suscripción Netflix',
-          categoria: 'Entretenimiento',
-          subcategoria: 'Streaming',
-          metodoPago: 'Tarjeta Débito',
+          concepto: 'suscripción Netflix',
+          categoria: 'entretenimiento',
+          subcategoria: 'streaming',
+          metodoPago: 'tarjeta debito',
           moneda: 'PEN',
           comercio: 'Netflix',
           descripcion: 'Mensualidad',
         },
         {
           fecha: formatDate(today),
-          monto: 15.00,
-          concepto: 'Taxi a oficina',
-          categoria: 'Transporte',
-          subcategoria: 'Taxi',
-          metodoPago: 'Yape',
+          monto: 15.0,
+          concepto: 'taxi a oficina',
+          categoria: 'transporte',
+          subcategoria: 'taxi',
+          metodoPago: 'yape',
           moneda: 'PEN',
           comercio: 'Uber',
           descripcion: '',
-        }
+        },
       ];
-      
+
       return Buffer.from(JSON.stringify(exampleData, null, 2));
     }
 
