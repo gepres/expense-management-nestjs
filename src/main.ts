@@ -64,7 +64,7 @@ async function bootstrap() {
     .addTag('Chat', 'Conversaciones con el asistente IA')
     .addTag('Receipts', 'Escaneo y procesamiento de comprobantes')
     .addTag('Expenses', 'Gestión de gastos')
-    .addTag('Import', 'Importación de gastos desde Excel')
+    .addTag('Import', 'Importación masiva de gastos desde Excel o JSON con validación y análisis IA')
     .addTag('Payment Methods', 'Gestión de métodos de pago')
     .addTag('Currencies', 'Gestión de monedas')
     .addTag('Health', 'Gestión de salud')

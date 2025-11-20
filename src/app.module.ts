@@ -16,6 +16,7 @@ import { PaymentMethodsModule } from './modules/payment-methods/payment-methods.
 import { CurrenciesModule } from './modules/currencies/currencies.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { ImportModule } from './modules/import/import.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { ChatModule } from './modules/chat/chat.module';
     CurrenciesModule,
     ExpensesModule,
     ChatModule,
+    ImportModule,
   ],
   controllers: [AppController],
   providers: [AppService],
