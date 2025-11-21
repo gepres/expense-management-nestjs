@@ -68,6 +68,10 @@ async function bootstrap() {
     .addTag('Payment Methods', 'Gestión de métodos de pago')
     .addTag('Currencies', 'Gestión de monedas')
     .addTag('Health', 'Gestión de salud')
+    .addTag('Shortcuts', 'Gestión de atajos')
+    .addTag('Shared Groups', 'Gestión de grupos compartidos')
+    .addTag('Voice', 'Gestión de voz')
+    .addTag('Whatsapp', 'Gestión de WhatsApp')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
