@@ -19,6 +19,7 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { CreateSubcategoryDto } from './dto/create-subcategory.dto';
 import { UpdateSubcategoryDto } from './dto/update-subcategory.dto';
+import { SuggestionDto } from './dto/suggestion.dto';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { FirebaseUser } from '../../common/interfaces/firebase-user.interface';
@@ -122,8 +123,6 @@ export class CategoriesController {
     @Param('categoryId') categoryId: string,
     @Body() createSubcategoryDto: CreateSubcategoryDto,
   ) {
-    console.log('categoryId', categoryId);
-    console.log('createSubcategoryDto', createSubcategoryDto);
     return this.categoriesService.addSubcategory(
       user.uid,
       categoryId,
@@ -170,6 +169,75 @@ export class CategoriesController {
       user.uid,
       categoryId,
       subcategoryId,
+    );
+  }
+
+  // Endpoints para suggestions_ideas
+  @Post(':categoryId/subcategories/:subcategoryId/suggestions')
+  @ApiOperation({ summary: 'Agregar una sugerencia a una subcategoría' })
+  @ApiResponse({ status: 201, description: 'Sugerencia agregada' })
+  async addSuggestion(
+    @CurrentUser() user: FirebaseUser,
+    @Param('categoryId') categoryId: string,
+    @Param('subcategoryId') subcategoryId: string,
+    @Body() suggestionDto: SuggestionDto,
+  ) {
+    return this.categoriesService.addSuggestion(
+      user.uid,
+      categoryId,
+      subcategoryId,
+      suggestionDto.idea,
+    );
+  }
+
+  @Get(':categoryId/subcategories/:subcategoryId/suggestions')
+  @ApiOperation({ summary: 'Obtener sugerencias de una subcategoría' })
+  @ApiResponse({ status: 200, description: 'Lista de sugerencias' })
+  async getSuggestions(
+    @CurrentUser() user: FirebaseUser,
+    @Param('categoryId') categoryId: string,
+    @Param('subcategoryId') subcategoryId: string,
+  ) {
+    return this.categoriesService.getSuggestions(
+      user.uid,
+      categoryId,
+      subcategoryId,
+    );
+  }
+
+  @Delete(':categoryId/subcategories/:subcategoryId/suggestions/:index')
+  @ApiOperation({ summary: 'Eliminar una sugerencia por índice' })
+  @ApiResponse({ status: 200, description: 'Sugerencia eliminada' })
+  async removeSuggestion(
+    @CurrentUser() user: FirebaseUser,
+    @Param('categoryId') categoryId: string,
+    @Param('subcategoryId') subcategoryId: string,
+    @Param('index') index: number,
+  ) {
+    return this.categoriesService.removeSuggestion(
+      user.uid,
+      categoryId,
+      subcategoryId,
+      Number(index),
+    );
+  }
+
+  @Patch(':categoryId/subcategories/:subcategoryId/suggestions/:index')
+  @ApiOperation({ summary: 'Actualizar una sugerencia por índice' })
+  @ApiResponse({ status: 200, description: 'Sugerencia actualizada' })
+  async updateSuggestion(
+    @CurrentUser() user: FirebaseUser,
+    @Param('categoryId') categoryId: string,
+    @Param('subcategoryId') subcategoryId: string,
+    @Param('index') index: number,
+    @Body() suggestionDto: SuggestionDto,
+  ) {
+    return this.categoriesService.updateSuggestion(
+      user.uid,
+      categoryId,
+      subcategoryId,
+      Number(index),
+      suggestionDto.idea,
     );
   }
 }

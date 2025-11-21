@@ -4,6 +4,7 @@ export interface Subcategory {
   id: string;
   nombre: string;
   descripcion?: string;
+  suggestions_ideas?: string[];
 }
 
 export interface Category {

@@ -378,4 +378,186 @@ export class CategoriesService {
     const updated = await categoryRef.get();
     return { id: updated.id, ...updated.data() } as Category;
   }
+
+  // Métodos para suggestions_ideas
+  async addSuggestion(
+    userId: string,
+    categoryId: string,
+    subcategoryId: string,
+    idea: string,
+  ): Promise<Category> {
+    const firestore = this.firebaseService.getFirestore();
+    const categoryRef = firestore
+      .collection('users')
+      .doc(userId)
+      .collection('categories')
+      .doc(categoryId);
+
+    const doc = await categoryRef.get();
+
+    if (!doc.exists) {
+      throw new NotFoundException('Category not found');
+    }
+
+    const data = doc.data() as Omit<Category, 'id'>;
+
+    if (data.userId !== userId) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    const subcategorias = data.subcategorias || [];
+    const index = subcategorias.findIndex((sub) => sub.id === subcategoryId);
+
+    if (index === -1) {
+      throw new NotFoundException('Subcategory not found');
+    }
+
+    if (!subcategorias[index].suggestions_ideas) {
+      subcategorias[index].suggestions_ideas = [];
+    }
+    subcategorias[index].suggestions_ideas.push(idea);
+
+    await categoryRef.update({
+      subcategorias,
+      updatedAt: Timestamp.now(),
+    });
+
+    const updated = await categoryRef.get();
+    return { id: updated.id, ...updated.data() } as Category;
+  }
+
+  async removeSuggestion(
+    userId: string,
+    categoryId: string,
+    subcategoryId: string,
+    ideaIndex: number,
+  ): Promise<Category> {
+    const firestore = this.firebaseService.getFirestore();
+    const categoryRef = firestore
+      .collection('users')
+      .doc(userId)
+      .collection('categories')
+      .doc(categoryId);
+
+    const doc = await categoryRef.get();
+
+    if (!doc.exists) {
+      throw new NotFoundException('Category not found');
+    }
+
+    const data = doc.data() as Omit<Category, 'id'>;
+
+    if (data.userId !== userId) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    const subcategorias = data.subcategorias || [];
+    const index = subcategorias.findIndex((sub) => sub.id === subcategoryId);
+
+    if (index === -1) {
+      throw new NotFoundException('Subcategory not found');
+    }
+
+    if (
+      !subcategorias[index].suggestions_ideas ||
+      !subcategorias[index].suggestions_ideas[ideaIndex]
+    ) {
+      throw new NotFoundException('Suggestion not found');
+    }
+
+    subcategorias[index].suggestions_ideas.splice(ideaIndex, 1);
+
+    await categoryRef.update({
+      subcategorias,
+      updatedAt: Timestamp.now(),
+    });
+
+    const updated = await categoryRef.get();
+    return { id: updated.id, ...updated.data() } as Category;
+  }
+
+  async updateSuggestion(
+    userId: string,
+    categoryId: string,
+    subcategoryId: string,
+    ideaIndex: number,
+    newIdea: string,
+  ): Promise<Category> {
+    const firestore = this.firebaseService.getFirestore();
+    const categoryRef = firestore
+      .collection('users')
+      .doc(userId)
+      .collection('categories')
+      .doc(categoryId);
+
+    const doc = await categoryRef.get();
+
+    if (!doc.exists) {
+      throw new NotFoundException('Category not found');
+    }
+
+    const data = doc.data() as Omit<Category, 'id'>;
+
+    if (data.userId !== userId) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    const subcategorias = data.subcategorias || [];
+    const index = subcategorias.findIndex((sub) => sub.id === subcategoryId);
+
+    if (index === -1) {
+      throw new NotFoundException('Subcategory not found');
+    }
+
+    if (
+      !subcategorias[index].suggestions_ideas ||
+      !subcategorias[index].suggestions_ideas[ideaIndex]
+    ) {
+      throw new NotFoundException('Suggestion not found');
+    }
+
+    subcategorias[index].suggestions_ideas[ideaIndex] = newIdea;
+
+    await categoryRef.update({
+      subcategorias,
+      updatedAt: Timestamp.now(),
+    });
+
+    const updated = await categoryRef.get();
+    return { id: updated.id, ...updated.data() } as Category;
+  }
+
+  async getSuggestions(
+    userId: string,
+    categoryId: string,
+    subcategoryId: string,
+  ): Promise<string[]> {
+    const firestore = this.firebaseService.getFirestore();
+    const categoryRef = firestore
+      .collection('users')
+      .doc(userId)
+      .collection('categories')
+      .doc(categoryId);
+
+    const doc = await categoryRef.get();
+
+    if (!doc.exists) {
+      throw new NotFoundException('Category not found');
+    }
+
+    const data = doc.data() as Omit<Category, 'id'>;
+
+    if (data.userId !== userId) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    const subcategorias = data.subcategorias || [];
+    const subcategory = subcategorias.find((sub) => sub.id === subcategoryId);
+
+    if (!subcategory) {
+      throw new NotFoundException('Subcategory not found');
+    }
+
+    return subcategory.suggestions_ideas || [];
+  }
 }
