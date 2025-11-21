@@ -20,6 +20,7 @@ import { ImportModule } from './modules/import/import.module';
 import { ShortcutsModule } from './modules/shortcuts/shortcuts.module';
 import { VoiceModule } from './modules/voice/voice.module';
 import { SharedModule } from './modules/shared/shared.module';
+import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { SharedModule } from './modules/shared/shared.module';
     ShortcutsModule,
     VoiceModule,
     SharedModule,
+    WhatsappModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -103,4 +103,13 @@ export class UsersService {
 
     this.logger.log(`Profile deleted for user ${userId}`);
   }
+
+  async linkWhatsappNumber(userId: string, phoneNumber: string) {
+    const firestore = this.firebaseService.getFirestore();
+    await firestore.collection('users').doc(userId).update({
+      whatsappPhone: phoneNumber,
+      whatsappLinkedAt: new Date(),
+    });
+    return { success: true };
+  }
 }

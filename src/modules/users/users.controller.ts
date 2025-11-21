@@ -76,4 +76,14 @@ export class UsersController {
       message: 'User initialized successfully',
     };
   }
+
+  @Post('whatsapp/link')
+  @ApiOperation({ summary: 'Vincular número de WhatsApp' })
+  @ApiResponse({ status: 200, description: 'Número vinculado exitosamente' })
+  async linkWhatsapp(
+    @CurrentUser() user: FirebaseUser,
+    @Body('phoneNumber') phoneNumber: string,
+  ) {
+    return this.usersService.linkWhatsappNumber(user.uid, phoneNumber);
+  }
 }
