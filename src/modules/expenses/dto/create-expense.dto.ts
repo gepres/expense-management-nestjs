@@ -1,78 +1,60 @@
-import {
-  IsNumber,
-  IsString,
-  IsIn,
-  IsOptional,
-  IsBoolean,
-  IsDateString,
-  Min,
-  MinLength,
-} from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsBoolean, IsArray, IsDateString, IsNotEmpty } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateExpenseDto {
-  @ApiProperty({ example: 45.50, description: 'Amount of the expense' })
+  @ApiProperty({ description: 'Monto del gasto', example: 50.0 })
   @IsNumber()
-  @Min(0)
+  @IsNotEmpty()
   amount: number;
 
-  @ApiProperty({ example: 'PEN', description: 'Currency code' })
+  @ApiProperty({ description: 'Concepto o título', example: 'Almuerzo' })
   @IsString()
-  @MinLength(3)
-  currency: string;
+  @IsNotEmpty()
+  concept: string;
 
-  @ApiProperty({ example: 'Alimentación', description: 'Expense category' })
-  @IsString()
-  @MinLength(1)
-  category: string;
-
-  @ApiProperty({ example: 'Almuerzo en restaurante', description: 'Description of the expense' })
-  @IsString()
-  @MinLength(1)
-  description: string;
-
-  @ApiProperty({ example: '2025-11-15T12:00:00Z', description: 'Date of the expense' })
+  @ApiProperty({ description: 'Fecha del gasto (ISO)', example: '2024-11-20T12:00:00Z' })
   @IsDateString()
+  @IsNotEmpty()
   date: string;
 
-  @ApiProperty({
-    example: 'yape',
-    enum: ['yape', 'plin', 'transferencia', 'efectivo', 'tarjeta', 'otro'],
-    description: 'Payment method used',
-  })
-  @IsIn(['yape', 'plin', 'transferencia', 'efectivo', 'tarjeta', 'otro'])
-  paymentMethod: 'yape' | 'plin' | 'transferencia' | 'efectivo' | 'tarjeta' | 'otro';
+  @ApiProperty({ description: 'Categoría', example: 'Alimentación' })
+  @IsString()
+  @IsNotEmpty()
+  category: string;
 
-  @ApiPropertyOptional({ example: 'Restaurant El Buen Sabor', description: 'Merchant name' })
+  @ApiPropertyOptional({ description: 'Subcategoría', example: 'Restaurantes' })
+  @IsOptional()
+  @IsString()
+  subcategory?: string;
+
+  @ApiProperty({ description: 'Método de pago', example: 'Tarjeta Crédito' })
+  @IsString()
+  @IsNotEmpty()
+  paymentMethod: string;
+
+  @ApiProperty({ description: 'Moneda', example: 'PEN', default: 'PEN' })
+  @IsString()
+  @IsNotEmpty()
+  currency: string;
+
+  @ApiPropertyOptional({ description: 'Comercio o lugar', example: 'Restaurante X' })
   @IsOptional()
   @IsString()
   merchant?: string;
 
-  @ApiPropertyOptional({ example: 'REF-123456', description: 'Transaction reference number' })
+  @ApiPropertyOptional({ description: 'Descripción detallada' })
   @IsOptional()
   @IsString()
-  referenceNumber?: string;
+  description?: string;
 
-  @ApiPropertyOptional({ example: 'https://...', description: 'URL of receipt image' })
+  @ApiPropertyOptional({ description: 'Etiquetas', example: ['trabajo'] })
   @IsOptional()
-  @IsString()
-  imageUrl?: string;
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
 
-  @ApiPropertyOptional({ description: 'Extracted data from receipt' })
-  @IsOptional()
-  extractedData?: {
-    rawText?: string;
-    fields?: Record<string, any>;
-  };
-
-  @ApiPropertyOptional({ example: 0.95, description: 'Confidence score of extraction' })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  confidence?: number;
-
-  @ApiPropertyOptional({ example: false, description: 'Whether expense is verified' })
+  @ApiPropertyOptional({ description: 'Es recurrente', default: false })
   @IsOptional()
   @IsBoolean()
-  verified?: boolean;
+  isRecurring?: boolean;
 }
