@@ -67,7 +67,7 @@ async function bootstrap() {
     .addTag('Import', 'Importación masiva de gastos desde Excel o JSON con validación y análisis IA')
     .addTag('Payment Methods', 'Gestión de métodos de pago')
     .addTag('Currencies', 'Gestión de monedas')
-    .addTag('Health', 'Gestión de salud')
+    .addTag('Health', 'Gestión de salud del API')
     .addTag('Shortcuts', 'Gestión de atajos')
     .addTag('Shared Groups', 'Gestión de grupos compartidos')
     .addTag('Voice', 'Gestión de voz')
