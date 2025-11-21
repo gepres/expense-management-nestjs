@@ -1,4 +1,5 @@
-import { Controller, Post, Body, Headers, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import { Controller, Post, Body, Headers, Logger, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { WhatsappService } from './whatsapp.service';
 import { FirebaseService } from '../firebase/firebase.service';
 import { ExpensesService } from '../expenses/expenses.service';
@@ -25,20 +26,36 @@ export class WhatsappController {
   async handleIncomingMessage(
     @Body() body: WhatsappMessage,
     @Headers('x-twilio-signature') signature: string,
+    @Res() res: Response,
   ) {
-    const baseUrl = this.configService.get('BASE_URL') || 'https://tu-dominio.com';
-    const url = `${baseUrl}/whatsapp/webhook`;
-    
-    // In development/sandbox, validation might be tricky if not using ngrok properly or if URL mismatches.
-    // You might want to skip validation if strictly in dev mode or if signature is missing for testing.
-    // const isValid = this.whatsappService.validateTwilioRequest(signature, url, body);
-    // if (!isValid) {
-    //   throw new HttpException('Invalid signature', HttpStatus.UNAUTHORIZED);
-    // }
+    // Responder inmediatamente a Twilio (para evitar timeouts)
+    res.status(200).send('');
 
     const phoneNumber = body.From.replace('whatsapp:', '');
     const message = body.Body.trim();
 
+    try {
+      const baseUrl = this.configService.get('BASE_URL') || 'https://tu-dominio.com';
+      const url = `${baseUrl}/whatsapp/webhook`;
+      
+      // Validar firma (opcional en desarrollo, necesario en producción)
+      // const isValid = this.whatsappService.validateTwilioRequest(signature, url, body);
+      // if (!isValid) {
+      //   this.logger.error('Invalid Twilio signature');
+      //   return;
+      // }
+
+      // Procesar el mensaje de forma asíncrona
+      this.processMessageAsync(phoneNumber, message).catch(err => {
+        this.logger.error('Error processing message:', err);
+      });
+
+    } catch (error) {
+      this.logger.error('Error in webhook:', error);
+    }
+  }
+
+  private async processMessageAsync(phoneNumber: string, message: string) {
     try {
       // Verificar si el usuario está registrado
       const user = await this.checkUserRegistration(phoneNumber);
@@ -49,20 +66,18 @@ export class WhatsappController {
           '❌ No estás registrado en la plataforma.\n\n' +
           'Por favor vincula tu número de WhatsApp desde tu perfil en la aplicación.'
         );
-        return { success: false, message: 'User not registered' };
+        return;
       }
 
       // Procesar el mensaje según el comando
       await this.processMessage(user, phoneNumber, message);
 
-      return { success: true };
     } catch (error) {
       this.logger.error('Error processing WhatsApp message:', error);
       await this.whatsappService.sendMessage(
         phoneNumber,
         '❌ Ocurrió un error al procesar tu mensaje. Por favor intenta de nuevo.'
       );
-      return { success: false, error: error.message };
     }
   }
 
