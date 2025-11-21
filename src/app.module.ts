@@ -19,6 +19,7 @@ import { ChatModule } from './modules/chat/chat.module';
 import { ImportModule } from './modules/import/import.module';
 import { ShortcutsModule } from './modules/shortcuts/shortcuts.module';
 import { VoiceModule } from './modules/voice/voice.module';
+import { SharedModule } from './modules/shared/shared.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { VoiceModule } from './modules/voice/voice.module';
     ImportModule,
     ShortcutsModule,
     VoiceModule,
+    SharedModule,
   ],
   controllers: [AppController],
   providers: [AppService],
