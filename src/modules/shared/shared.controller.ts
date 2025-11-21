@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, SetMetadata } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, SetMetadata, Query, Res, StreamableFile } from '@nestjs/common';
+import type { Response } from 'express';
 import { SharedService } from './shared.service';
 import { CreateSharedGroupDto } from './dto/create-shared-group.dto';
 import { UpdateSharedGroupDto } from './dto/update-shared-group.dto';
@@ -155,5 +156,29 @@ export class SharedController {
   @ApiOperation({ summary: 'Actividad reciente' })
   getActivity(@CurrentUser() user: FirebaseUser, @Param('id') groupId: string) {
     return this.sharedService.getActivity(user.uid, groupId);
+  }
+
+  // --- Export ---
+
+  @Get(':id/export')
+  @ApiOperation({ summary: 'Exportar gastos (JSON/Excel)' })
+  @ApiResponse({ status: 200, description: 'Archivo descargable o JSON' })
+  async exportData(
+    @CurrentUser() user: FirebaseUser,
+    @Param('id') groupId: string,
+    @Query('format') format: 'json' | 'excel' = 'json',
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.sharedService.exportGroupExpenses(user.uid, groupId, format);
+
+    if (format === 'excel') {
+      res.set({
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="gastos_grupo_${groupId}.xlsx"`,
+      });
+      return new StreamableFile(result as Buffer);
+    }
+
+    return result;
   }
 }

@@ -772,4 +772,141 @@ export class SharedService {
 
     return activity;
   }
+
+  // --- Export ---
+
+  async exportGroupExpenses(userId: string, groupId: string, format: 'json' | 'excel') {
+    const firestore = this.firebaseService.getFirestore();
+    const groupRef = firestore.collection('shared_groups').doc(groupId);
+    const doc = await groupRef.get();
+
+    if (!doc.exists) throw new NotFoundException('Group not found');
+    const data = doc.data();
+    if (!data || !data.members.includes(userId)) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    // 1. Fetch all data
+    const [budgetsSnapshot, expensesSnapshot, membersSnapshot] = await Promise.all([
+      groupRef.collection('budgets').get(),
+      groupRef.collection('expenses').get(),
+      groupRef.collection('members').get(),
+    ]);
+
+    const budgets = budgetsSnapshot.docs.map(d => ({
+      id: d.id,
+      ...d.data(),
+      createdAt: (d.data().createdAt as Timestamp).toDate(),
+    }));
+
+    const expenses = expensesSnapshot.docs.map(d => ({
+      id: d.id,
+      ...d.data(),
+      createdAt: (d.data().createdAt as Timestamp).toDate(),
+    }));
+
+    // Get member details
+    const members = await Promise.all(data.members.map(async (mid: string) => {
+      try {
+        const userRecord = await this.firebaseService.getAuth().getUser(mid);
+        return {
+          id: mid,
+          name: userRecord.displayName || userRecord.email || 'Usuario',
+          email: userRecord.email || '',
+        };
+      } catch (e) {
+        return { id: mid, name: 'Usuario', email: '' };
+      }
+    }));
+
+    // Calculate stats for summary
+    const stats = await this.getStats(userId, groupId);
+
+    if (format === 'json') {
+      return {
+        group: {
+          id: doc.id,
+          name: data.name,
+          description: data.description,
+          createdAt: (data.createdAt as Timestamp).toDate(),
+        },
+        members,
+        stats,
+        expenses,
+        budgets,
+      };
+    }
+
+    // Excel Generation
+    const ExcelJS = require('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'Gastos App';
+    workbook.created = new Date();
+
+    // Sheet 1: Summary
+    const summarySheet = workbook.addWorksheet('Resumen');
+    summarySheet.columns = [
+      { header: 'Concepto', key: 'concept', width: 30 },
+      { header: 'Valor', key: 'value', width: 20 },
+    ];
+    summarySheet.addRows([
+      { concept: 'Grupo', value: data.name },
+      { concept: 'Total Gastos', value: stats.totalExpenses },
+      { concept: 'Total Aportes', value: stats.totalBudget },
+      { concept: 'Balance', value: stats.balance },
+      {},
+      { concept: 'Balances por Miembro', value: '' },
+    ]);
+
+    stats.memberStats.forEach((m: any) => {
+      summarySheet.addRow({ concept: m.name, value: m.balance });
+    });
+
+    // Sheet 2: Expenses
+    const expensesSheet = workbook.addWorksheet('Gastos');
+    expensesSheet.columns = [
+      { header: 'Fecha', key: 'date', width: 15 },
+      { header: 'Descripción', key: 'description', width: 30 },
+      { header: 'Categoría', key: 'category', width: 15 },
+      { header: 'Monto', key: 'amount', width: 15 },
+      { header: 'Pagado Por', key: 'paidBy', width: 20 },
+      { header: 'Dividido Entre', key: 'split', width: 30 },
+    ];
+
+    expenses.forEach((e: any) => {
+      const payer = members.find(m => m.id === e.paidBy)?.name || 'Desconocido';
+      const splitNames = (e.splitAmong || []).map((uid: string) => members.find(m => m.id === uid)?.name).join(', ');
+      
+      expensesSheet.addRow({
+        date: e.createdAt,
+        description: e.description,
+        category: e.category,
+        amount: e.amount,
+        paidBy: payer,
+        split: splitNames,
+      });
+    });
+
+    // Sheet 3: Budgets
+    const budgetsSheet = workbook.addWorksheet('Aportes');
+    budgetsSheet.columns = [
+      { header: 'Fecha', key: 'date', width: 15 },
+      { header: 'Usuario', key: 'user', width: 20 },
+      { header: 'Monto', key: 'amount', width: 15 },
+      { header: 'Nota', key: 'note', width: 30 },
+    ];
+
+    budgets.forEach((b: any) => {
+      const user = members.find(m => m.id === (b.odId || b.userId))?.name || 'Desconocido';
+      budgetsSheet.addRow({
+        date: b.createdAt,
+        user: user,
+        amount: b.amount,
+        note: b.note || '',
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer;
+  }
 }
