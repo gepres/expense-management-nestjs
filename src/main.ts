@@ -1,3 +1,4 @@
+// src/main.ts
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -5,6 +6,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import * as bodyParser from 'body-parser';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -17,6 +19,10 @@ async function bootstrap() {
 
   // Global prefix
   app.setGlobalPrefix('api');
+
+  // IMPORTANTE: Body parser para Twilio (debe ir ANTES de CORS y otros middlewares)
+  app.use(bodyParser.urlencoded({ extended: true }));
+  app.use(bodyParser.json());
 
   // CORS Configuration
   const corsOrigin = configService.get<string>('CORS_ORIGIN');
@@ -75,7 +81,6 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  // Configuración mejorada de Swagger para producción
   SwaggerModule.setup('api/docs', app, document, {
     swaggerOptions: {
       persistAuthorization: true,
@@ -92,13 +97,13 @@ async function bootstrap() {
   });
 
   const port = configService.get<number>('PORT') || 3000;
-  // Escuchar en 0.0.0.0 para producción (importante para Docker/Cloud)
   await app.listen(port, '0.0.0.0');
 
   const environment = configService.get<string>('NODE_ENV') || 'development';
   logger.log(`🚀 Application is running on: http://localhost:${port}`);
   logger.log(`📚 Swagger documentation: http://localhost:${port}/api/docs`);
   logger.log(`🌍 Environment: ${environment}`);
-  logger.log(`🔒 CORS enabled for: ${corsOrigin || '*'}`);
+  logger.log(`🔓 CORS enabled for: ${corsOrigin || '*'}`);
+  logger.log(`📱 WhatsApp webhook ready at: /api/whatsapp/webhook`);
 }
 void bootstrap();

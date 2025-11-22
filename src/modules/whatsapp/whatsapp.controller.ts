@@ -1,14 +1,20 @@
-import { Controller, Post, Body, Headers, Logger, Res } from '@nestjs/common';
+// whatsapp.controller.ts
+
+import { Controller, Post, Body, Headers, Logger, Res, HttpStatus } from '@nestjs/common';
 import type { Response } from 'express';
 import { WhatsappService } from './whatsapp.service';
 import { FirebaseService } from '../firebase/firebase.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { ConfigService } from '@nestjs/config';
 
-interface WhatsappMessage {
-  From: string; // whatsapp:+51999999999
-  Body: string;
+interface TwilioWebhookBody {
   MessageSid: string;
+  AccountSid: string;
+  From: string; // whatsapp:+51999999999
+  To: string;
+  Body: string;
+  NumMedia?: string;
+  [key: string]: any;
 }
 
 @Controller('whatsapp')
@@ -24,43 +30,53 @@ export class WhatsappController {
 
   @Post('webhook')
   async handleIncomingMessage(
-    @Body() body: WhatsappMessage,
+    @Body() body: TwilioWebhookBody,
     @Headers('x-twilio-signature') signature: string,
     @Res() res: Response,
   ) {
-    // Responder inmediatamente a Twilio (para evitar timeouts)
-    res.status(200).send('');
-
-    const phoneNumber = body.From.replace('whatsapp:', '');
-    const message = body.Body.trim();
+    this.logger.log(`📨 Webhook received from: ${body.From}`);
+    this.logger.log(`📝 Message: ${body.Body}`);
+    this.logger.log(`🆔 MessageSid: ${body.MessageSid}`);
 
     try {
-      const baseUrl = this.configService.get('BASE_URL') || 'https://tu-dominio.com';
-      const url = `${baseUrl}/whatsapp/webhook`;
-      
-      // Validar firma (opcional en desarrollo, necesario en producción)
-      // const isValid = this.whatsappService.validateTwilioRequest(signature, url, body);
-      // if (!isValid) {
-      //   this.logger.error('Invalid Twilio signature');
-      //   return;
-      // }
+      // CRÍTICO: Responder inmediatamente con TwiML vacío válido
+      res.status(HttpStatus.OK)
+         .type('text/xml')
+         .send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
 
-      // Procesar el mensaje de forma asíncrona
+      const phoneNumber = body.From?.replace('whatsapp:', '') || '';
+      const message = body.Body?.trim() || '';
+
+      if (!phoneNumber || !message) {
+        this.logger.error('❌ Missing phone number or message');
+        return;
+      }
+
+      // Procesar el mensaje de forma asíncrona (sin bloquear la respuesta)
       this.processMessageAsync(phoneNumber, message).catch(err => {
-        this.logger.error('Error processing message:', err);
+        this.logger.error('❌ Error processing message:', err);
       });
 
     } catch (error) {
-      this.logger.error('Error in webhook:', error);
+      this.logger.error('❌ Error in webhook:', error);
+      // Aunque haya error, responder a Twilio para evitar reintentos
+      if (!res.headersSent) {
+        res.status(HttpStatus.OK)
+           .type('text/xml')
+           .send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+      }
     }
   }
 
   private async processMessageAsync(phoneNumber: string, message: string) {
     try {
+      this.logger.log(`🔄 Processing message from ${phoneNumber}: ${message}`);
+
       // Verificar si el usuario está registrado
       const user = await this.checkUserRegistration(phoneNumber);
 
       if (!user) {
+        this.logger.log(`❌ User not registered: ${phoneNumber}`);
         await this.whatsappService.sendMessage(
           phoneNumber,
           '❌ No estás registrado en la plataforma.\n\n' +
@@ -69,15 +85,21 @@ export class WhatsappController {
         return;
       }
 
+      this.logger.log(`✅ User found: ${user.id}`);
+
       // Procesar el mensaje según el comando
       await this.processMessage(user, phoneNumber, message);
 
     } catch (error) {
-      this.logger.error('Error processing WhatsApp message:', error);
-      await this.whatsappService.sendMessage(
-        phoneNumber,
-        '❌ Ocurrió un error al procesar tu mensaje. Por favor intenta de nuevo.'
-      );
+      this.logger.error('❌ Error processing WhatsApp message:', error);
+      try {
+        await this.whatsappService.sendMessage(
+          phoneNumber,
+          '❌ Ocurrió un error al procesar tu mensaje. Por favor intenta de nuevo.'
+        );
+      } catch (sendError) {
+        this.logger.error('❌ Error sending error message:', sendError);
+      }
     }
   }
 
@@ -108,6 +130,12 @@ export class WhatsappController {
   private async processMessage(user: any, phoneNumber: string, message: string) {
     const lowerMessage = message.toLowerCase();
 
+    // Comando: hola/inicio
+    if (lowerMessage === 'hola' || lowerMessage === 'hi' || lowerMessage === 'inicio' || lowerMessage === 'start') {
+      await this.sendWelcomeMessage(user, phoneNumber);
+      return;
+    }
+
     // Comando: resumen
     if (lowerMessage === 'resumen' || lowerMessage === 'ver gastos') {
       await this.sendExpenseSummary(user, phoneNumber);
@@ -124,9 +152,25 @@ export class WhatsappController {
     await this.registerExpense(user, phoneNumber, message);
   }
 
+  private async sendWelcomeMessage(user: any, phoneNumber: string) {
+    const welcomeText = 
+      `👋 ¡Hola ${user.name || 'Usuario'}!\n\n` +
+      `Bienvenido a tu asistente de gastos. Ya puedes empezar a registrar tus gastos por WhatsApp.\n\n` +
+      `📝 *Para registrar un gasto:*\n` +
+      `Escribe el monto y la descripción:\n` +
+      `• "50 almuerzo"\n` +
+      `• "25.50 taxi"\n` +
+      `• "100 supermercado"\n\n` +
+      `📊 *Para ver tu resumen:*\n` +
+      `Escribe "resumen"\n\n` +
+      `❓ *Para más ayuda:*\n` +
+      `Escribe "ayuda"`;
+
+    await this.whatsappService.sendMessage(phoneNumber, welcomeText);
+  }
+
   private async registerExpense(user: any, phoneNumber: string, message: string) {
     // Parsear el mensaje para extraer monto y concepto
-    // Formato esperado: "50 almuerzo" o "25.50 taxi" o "100 en supermercado"
     const regex = /(\d+(?:\.\d{1,2})?)\s+(?:en\s+)?(.+)/i;
     const match = message.match(regex);
 
@@ -149,32 +193,34 @@ export class WhatsappController {
     // Categoría por defecto o inferida
     const category = this.inferCategory(description);
 
-    // Registrar el gasto
-    // Note: ExpensesService.create(userId, dto)
-    await this.expenseService.create(user.id, {
-      amount,
-      description, // Assuming description maps to description in DTO. If DTO uses 'concept', check mapping.
-      // Checking ExpensesService again... it uses 'concepto' or 'description'?
-      // In generateExcel it uses 'concepto' and 'descripcion'.
-      // In create, it saves dto fields.
-      // Let's assume description is fine for now, or map to concept if needed.
-      // I'll check CreateExpenseDto in a moment.
-      category,
-      date: new Date().toISOString(), // DTO expects string date usually? Or Date object? Service converts it.
-      // Service: fecha: Timestamp.fromDate(new Date(dto.date))
-      // So passing ISO string is safe.
-      paymentMethod: 'Efectivo', // Default
-      currency: 'PEN', // Default
-    } as any);
+    try {
+      // Registrar el gasto
+      await this.expenseService.create(user.id, {
+        amount,
+        description,
+        category,
+        date: new Date().toISOString(),
+        paymentMethod: 'Efectivo',
+        currency: 'PEN',
+      } as any);
 
-    await this.whatsappService.sendMessage(
-      phoneNumber,
-      `✅ Gasto registrado exitosamente!\n\n` +
-      `💰 Monto: S/ ${amount.toFixed(2)}\n` +
-      `📝 Descripción: ${description}\n` +
-      `🏷️ Categoría: ${category}\n\n` +
-      `Escribe "resumen" para ver tus gastos.`
-    );
+      this.logger.log(`✅ Expense created for user ${user.id}: ${amount} - ${description}`);
+
+      await this.whatsappService.sendMessage(
+        phoneNumber,
+        `✅ Gasto registrado exitosamente!\n\n` +
+        `💰 Monto: S/ ${amount.toFixed(2)}\n` +
+        `📝 Descripción: ${description}\n` +
+        `🏷️ Categoría: ${category}\n\n` +
+        `Escribe "resumen" para ver tus gastos.`
+      );
+    } catch (error) {
+      this.logger.error('Error creating expense:', error);
+      await this.whatsappService.sendMessage(
+        phoneNumber,
+        '❌ Error al registrar el gasto. Por favor intenta de nuevo.'
+      );
+    }
   }
 
   private inferCategory(description: string): string {
@@ -201,40 +247,45 @@ export class WhatsappController {
   private async sendExpenseSummary(user: any, phoneNumber: string) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
 
-    // Using findAll with date range
-    const expenses = await this.expenseService.findAll(user.id, {
-      startDate: today.toISOString(),
-      endDate: today.toISOString(), // findAll uses endDate set to 23:59:59 if passed
-    }) as any[];
+    try {
+      const expenses = await this.expenseService.findAll(user.id, {
+        startDate: today.toISOString(),
+        endDate: new Date().toISOString(),
+      }) as any[];
 
-    if (expenses.length === 0) {
+      if (expenses.length === 0) {
+        await this.whatsappService.sendMessage(
+          phoneNumber,
+          '📊 No tienes gastos registrados hoy.'
+        );
+        return;
+      }
+
+      const total = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+      
+      const byCategory = expenses.reduce((acc, exp) => {
+        const cat = exp.category || 'Sin categoría';
+        acc[cat] = (acc[cat] || 0) + (exp.amount || 0);
+        return acc;
+      }, {} as Record<string, number>);
+
+      let summary = '📊 *Resumen de gastos de hoy*\n\n';
+      summary += `💰 Total: S/ ${total.toFixed(2)}\n\n`;
+      summary += '*Por categoría:*\n';
+      
+      for (const [category, amount] of Object.entries(byCategory)) {
+        summary += `• ${category}: S/ ${(amount as number).toFixed(2)}\n`;
+      }
+
+      await this.whatsappService.sendMessage(phoneNumber, summary);
+    } catch (error) {
+      this.logger.error('Error getting expense summary:', error);
       await this.whatsappService.sendMessage(
         phoneNumber,
-        '📊 No tienes gastos registrados hoy.'
+        '❌ Error al obtener el resumen. Por favor intenta de nuevo.'
       );
-      return;
     }
-
-    const total = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
-    
-    const byCategory = expenses.reduce((acc, exp) => {
-      const cat = exp.category || 'Sin categoría';
-      acc[cat] = (acc[cat] || 0) + (exp.amount || 0);
-      return acc;
-    }, {} as Record<string, number>);
-
-    let summary = '📊 *Resumen de gastos de hoy*\n\n';
-    summary += `💰 Total: S/ ${total.toFixed(2)}\n\n`;
-    summary += '*Por categoría:*\n';
-    
-    for (const [category, amount] of Object.entries(byCategory)) {
-      summary += `• ${category}: S/ ${(amount as number).toFixed(2)}\n`;
-    }
-
-    await this.whatsappService.sendMessage(phoneNumber, summary);
   }
 
   private async sendHelpMessage(phoneNumber: string) {
