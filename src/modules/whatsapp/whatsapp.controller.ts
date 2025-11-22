@@ -136,14 +136,14 @@ export class WhatsappController {
       return;
     }
 
-    // Comando: resumen
-    if (lowerMessage === 'resumen' || lowerMessage === 'ver gastos') {
+    // Comando: resumen (más flexible)
+    if (lowerMessage.includes('resumen') || lowerMessage.includes('ver gastos')) {
       await this.sendExpenseSummary(user, phoneNumber);
       return;
     }
 
     // Comando: ayuda
-    if (lowerMessage === 'ayuda' || lowerMessage === 'help') {
+    if (lowerMessage.includes('ayuda') || lowerMessage.includes('help')) {
       await this.sendHelpMessage(phoneNumber);
       return;
     }
