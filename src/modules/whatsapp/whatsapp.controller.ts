@@ -257,20 +257,28 @@ export class WhatsappController {
   }
 
   private async sendExpenseSummary(user: any, phoneNumber: string) {
+    this.logger.log(`📊 Sending expense summary to ${phoneNumber}`);
+    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     try {
+      this.logger.log(`🔍 Fetching expenses for user ${user.id}`);
+      
       const expenses = await this.expenseService.findAll(user.id, {
         startDate: today.toISOString(),
         endDate: new Date().toISOString(),
       }) as any[];
 
+      this.logger.log(`📋 Found ${expenses.length} expenses`);
+
       if (expenses.length === 0) {
+        this.logger.log(`📭 No expenses found, sending empty message`);
         await this.whatsappService.sendMessage(
           phoneNumber,
           '📊 No tienes gastos registrados hoy.'
         );
+        this.logger.log(`✅ Empty summary sent`);
         return;
       }
 
@@ -290,13 +298,20 @@ export class WhatsappController {
         summary += `• ${category}: S/ ${(amount as number).toFixed(2)}\n`;
       }
 
+      this.logger.log(`📤 Sending summary: ${summary.substring(0, 50)}...`);
       await this.whatsappService.sendMessage(phoneNumber, summary);
+      this.logger.log(`✅ Summary sent successfully`);
     } catch (error) {
-      this.logger.error('Error getting expense summary:', error);
-      await this.whatsappService.sendMessage(
-        phoneNumber,
-        '❌ Error al obtener el resumen. Por favor intenta de nuevo.'
-      );
+      this.logger.error('❌ Error getting expense summary:', error);
+      this.logger.error(`❌ Error details: ${JSON.stringify(error)}`);
+      try {
+        await this.whatsappService.sendMessage(
+          phoneNumber,
+          '❌ Error al obtener el resumen. Por favor intenta de nuevo.'
+        );
+      } catch (sendError) {
+        this.logger.error('❌ Error sending error message:', sendError);
+      }
     }
   }
 

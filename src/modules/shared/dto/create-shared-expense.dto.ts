@@ -37,4 +37,9 @@ export class CreateSharedExpenseDto {
   @IsArray()
   @IsString({ each: true })
   splitAmong?: string[];
+
+  @ApiPropertyOptional({ example: 'yape' })
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
 }

@@ -21,4 +21,9 @@ export class CreateSharedBudgetDto {
   @IsOptional()
   @IsString()
   type?: string;
+
+  @ApiPropertyOptional({ example: 'yape' })
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
 }
