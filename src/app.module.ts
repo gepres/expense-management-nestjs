@@ -21,6 +21,8 @@ import { ShortcutsModule } from './modules/shortcuts/shortcuts.module';
 import { VoiceModule } from './modules/voice/voice.module';
 import { SharedModule } from './modules/shared/shared.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
+import { ShoppingListsModule } from './modules/shopping-lists/shopping-lists.module';
+
 
 @Module({
   imports: [
@@ -60,6 +62,7 @@ import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
     VoiceModule,
     SharedModule,
     WhatsappModule,
+    ShoppingListsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

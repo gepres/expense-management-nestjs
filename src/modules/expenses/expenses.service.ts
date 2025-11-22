@@ -114,6 +114,24 @@ export class ExpensesService {
     delete data.date;
 
     await docRef.set(data);
+
+    // Si se proporciona shoppingListId, actualizar el estado a "archived"
+    if (dto.shoppingListId) {
+      try {
+        await firestore
+          .collection('shopping-lists')
+          .doc(dto.shoppingListId)
+          .update({
+            status: 'archived',
+            updatedAt: Timestamp.now(),
+          });
+        this.logger.log(`Shopping list ${dto.shoppingListId} archived after expense creation`);
+      } catch (error) {
+        this.logger.warn(`Failed to archive shopping list ${dto.shoppingListId}`, error);
+        // No lanzamos error para no bloquear la creación del gasto
+      }
+    }
+
     return { id: docRef.id, ...data, fecha: dto.date };
   }
 

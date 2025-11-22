@@ -57,4 +57,9 @@ export class CreateExpenseDto {
   @IsOptional()
   @IsBoolean()
   isRecurring?: boolean;
+
+  @ApiPropertyOptional({ description: 'ID de lista de compras asociada' })
+  @IsOptional()
+  @IsString()
+  shoppingListId?: string;
 }
