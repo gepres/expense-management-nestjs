@@ -7,23 +7,7 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-
-export class CreateSubcategoryDto {
-  @ApiProperty({ example: 'supermercado' })
-  @IsString()
-  @MinLength(1)
-  id: string;
-
-  @ApiProperty({ example: 'Supermercado' })
-  @IsString()
-  @MinLength(1)
-  nombre: string;
-
-  @ApiPropertyOptional({ example: 'Compras de abarrotes y productos básicos' })
-  @IsOptional()
-  @IsString()
-  descripcion?: string;
-}
+import { CreateSubcategoryDto } from './create-subcategory.dto';
 
 export class CreateCategoryDto {
   @ApiProperty({ example: 'alimentacion' })
