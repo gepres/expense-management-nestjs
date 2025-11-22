@@ -171,17 +171,27 @@ export class WhatsappController {
 
   private async registerExpense(user: any, phoneNumber: string, message: string) {
     // Parsear el mensaje para extraer monto y concepto
-    const regex = /(\d+(?:\.\d{1,2})?)\s+(?:en\s+)?(.+)/i;
-    const match = message.match(regex);
+    // Formatos soportados:
+    // "50 almuerzo" | "25.50 taxi" | "100 en supermercado"
+    // "Gaste 15 soles en bodega" | "Gasté 20 en taxi" | "Pagué 30 soles almuerzo"
+    
+    // Primero intentar formato: "Gaste/Gasté/Pagué X soles en Y" o "Gaste X en Y"
+    let match = message.match(/(?:gast[eé]|pagu[eé])\s+(\d+(?:\.\d{1,2})?)\s+(?:soles?\s+)?(?:en\s+)?(.+)/i);
+    
+    // Si no coincide, intentar formato simple: "X descripción" o "X en descripción"
+    if (!match) {
+      match = message.match(/(\d+(?:\.\d{1,2})?)\s+(?:en\s+)?(.+)/i);
+    }
 
     if (!match) {
       await this.whatsappService.sendMessage(
         phoneNumber,
         '❌ No pude entender el formato.\n\n' +
-        '💡 Formato correcto:\n' +
-        '"50 almuerzo"\n' +
-        '"25.50 taxi"\n' +
-        '"100 en supermercado"\n\n' +
+        '💡 Formatos correctos:\n' +
+        '• "50 almuerzo"\n' +
+        '• "25.50 taxi"\n' +
+        '• "Gaste 15 soles en bodega"\n' +
+        '• "Pagué 30 en supermercado"\n\n' +
         'Escribe "ayuda" para ver más opciones.'
       );
       return;
@@ -189,6 +199,8 @@ export class WhatsappController {
 
     const amount = parseFloat(match[1]);
     const description = match[2].trim();
+
+    this.logger.log(`💰 Parsed expense: ${amount} - ${description}`);
 
     // Categoría por defecto o inferida
     const category = this.inferCategory(description);
