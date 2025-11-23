@@ -5,6 +5,8 @@ import type { Response } from 'express';
 import { WhatsappService } from './whatsapp.service';
 import { FirebaseService } from '../firebase/firebase.service';
 import { ExpensesService } from '../expenses/expenses.service';
+import { CategoriesService } from '../categories/categories.service';
+import { PaymentMethodsService } from '../payment-methods/payment-methods.service';
 import { ConfigService } from '@nestjs/config';
 
 interface TwilioWebhookBody {
@@ -25,6 +27,8 @@ export class WhatsappController {
     private whatsappService: WhatsappService,
     private firebaseService: FirebaseService,
     private expenseService: ExpensesService,
+    private categoriesService: CategoriesService,
+    private paymentMethodsService: PaymentMethodsService,
     private configService: ConfigService,
   ) {}
 
@@ -189,7 +193,7 @@ export class WhatsappController {
         '❌ No pude entender el formato.\n\n' +
         '💡 Formatos correctos:\n' +
         '• "50 almuerzo"\n' +
-        '• "25.50 taxi"\n' +
+        '• "25.50 taxi con yape"\n' +
         '• "Gaste 15 soles en bodega"\n' +
         '• "Pagué 30 en supermercado"\n\n' +
         'Escribe "ayuda" para ver más opciones.'
@@ -202,30 +206,37 @@ export class WhatsappController {
 
     this.logger.log(`💰 Parsed expense: ${amount} - ${description}`);
 
-    // Categoría por defecto o inferida
-    const category = this.inferCategory(description);
+    // Categoría por defecto o inferida desde Firebase
+    const category = await this.inferCategory(user.id, description);
+    const subcategory = await this.inferSubCategory(user.id, category, description);
+    const paymentMethod = await this.inferPaymentMethod(user.id, description);
 
     try {
       // Registrar el gasto
       await this.expenseService.create(user.id, {
         amount,
-        description,
+        concept: description,
         category,
+        subcategory,
         date: new Date().toISOString(),
-        paymentMethod: 'Efectivo',
+        paymentMethod: paymentMethod,
         currency: 'PEN',
       } as any);
 
       this.logger.log(`✅ Expense created for user ${user.id}: ${amount} - ${description}`);
 
-      await this.whatsappService.sendMessage(
-        phoneNumber,
-        `✅ Gasto registrado exitosamente!\n\n` +
+      let confirmationMessage = `✅ Gasto registrado exitosamente!\n\n` +
         `💰 Monto: S/ ${amount.toFixed(2)}\n` +
         `📝 Descripción: ${description}\n` +
-        `🏷️ Categoría: ${category}\n\n` +
-        `Escribe "resumen" para ver tus gastos.`
-      );
+        `🏷️ Categoría: ${category}`;
+      
+      if (subcategory) {
+        confirmationMessage += `\n📂 Subcategoría: ${subcategory}`;
+      }
+      
+      confirmationMessage += `\n\nEscribe "resumen" para ver tus gastos.`;
+
+      await this.whatsappService.sendMessage(phoneNumber, confirmationMessage);
     } catch (error) {
       this.logger.error('Error creating expense:', error);
       await this.whatsappService.sendMessage(
@@ -235,25 +246,116 @@ export class WhatsappController {
     }
   }
 
-  private inferCategory(description: string): string {
-    const desc = description.toLowerCase();
-    
-    const categories = {
-      'Alimentación': ['almuerzo', 'cena', 'desayuno', 'comida', 'restaurant', 'cafe', 'pollo', 'menu'],
-      'Transporte': ['taxi', 'uber', 'bus', 'gasolina', 'combustible', 'pasaje', 'colectivo'],
-      'Supermercado': ['supermercado', 'mercado', 'compras', 'tienda', 'bodega'],
-      'Servicios': ['luz', 'agua', 'internet', 'teléfono', 'netflix', 'recibo'],
-      'Salud': ['farmacia', 'médico', 'doctor', 'medicina', 'pastillas'],
-      'Entretenimiento': ['cine', 'teatro', 'juego', 'diversión', 'entrada'],
-    };
+  private async inferCategory(userId: string, description: string): Promise<string> {
+    try {
+      const desc = description.toLowerCase();
+      
+      // Obtener las categorías del usuario desde Firebase
+      const categories = await this.categoriesService.findAll(userId);
+      
+      // Buscar coincidencias en las categorías y subcategorías
+      for (const category of categories) {
+        // Verificar si el nombre de la categoría coincide,category.nombre
 
-    for (const [category, keywords] of Object.entries(categories)) {
-      if (keywords.some(keyword => desc.includes(keyword))) {
-        return category;
+        if (desc.includes(category.nombre.toLowerCase())) {
+          return category.id;
+        }
+        
+        // Verificar subcategorías y sus keywords
+        if (category.subcategorias && category.subcategorias.length > 0) {
+          for (const subcategory of category.subcategorias) {
+            // Verificar nombre de subcategoría
+            if (desc.includes(subcategory.nombre.toLowerCase())) {
+              return category.id;
+            }
+            
+            // Verificar keywords en suggestions_ideas
+            if (subcategory.suggestions_ideas && subcategory.suggestions_ideas.length > 0) {
+              for (const keyword of subcategory.suggestions_ideas) {
+                if (desc.includes(keyword.toLowerCase())) {
+                  return category.id;
+                }
+              }
+            }
+          }
+        }
       }
+      
+      // Si no encuentra coincidencia, devolver la primera categoría o 'Otros'
+      return categories.length > 0 ? categories[0].id : 'Otros';
+    } catch (error) {
+      this.logger.error('Error inferring category:', error);
+      return 'Otros';
     }
+  }
 
-    return 'Otros';
+  private async inferSubCategory(userId: string, categoryName: string, description: string): Promise<string | null> {
+    try {
+      const desc = description.toLowerCase();
+      
+      // Obtener las categorías del usuario
+      const categories = await this.categoriesService.findAll(userId);
+      
+      // Encontrar la categoría específica
+      const category = categories.find(cat => cat.id === categoryName);
+      
+      if (!category || !category.subcategorias || category.subcategorias.length === 0) {
+        return null;
+      }
+      
+      // Buscar coincidencias en subcategorías
+      for (const subcategory of category.subcategorias) {
+        // Verificar nombre de subcategoría
+        if (desc.includes(subcategory.nombre.toLowerCase())) {
+          return subcategory.id;
+        }
+        
+        // Verificar keywords en suggestions_ideas
+        if (subcategory.suggestions_ideas && subcategory.suggestions_ideas.length > 0) {
+          for (const keyword of subcategory.suggestions_ideas) {
+            if (desc.includes(keyword.toLowerCase())) {
+              return subcategory.id;
+            }
+          }
+        }
+      }
+      
+      // Si no encuentra coincidencia, devolver la primera subcategoría o null
+      return category.subcategorias.length > 0 ? category.subcategorias[0].id : null;
+    } catch (error) {
+      this.logger.error('Error inferring subcategory:', error);
+      return null;
+    }
+  }
+
+  private async inferPaymentMethod(userId: string, description: string): Promise<string | null> {
+    try {
+      const desc = description.toLowerCase();
+      // Specific checks for common payment method phrases
+      if (desc.includes('con yape') || desc.includes('yape')) {
+        return 'yape';
+      }
+      if (desc.includes('con efecto') || desc.includes('en efectivo') || desc.includes('efectivo')) {
+        return 'efectivo';
+      }
+
+      
+      // Obtener los métodos de pago del usuario
+      const paymentMethods = await this.paymentMethodsService.findAll(userId);
+      
+      // Buscar coincidencias en los nombres de los métodos de pago
+      for (const method of paymentMethods) {
+        if (desc.includes(method.nombre.toLowerCase())) {
+          return method.id;
+        }
+      }
+      
+      // Si no encuentra coincidencia, devolver el primer método de pago o null
+      return paymentMethods.length > 0 ? paymentMethods[0].id : null;
+    } catch (error) {
+      this.logger.error('Error inferring payment method:', error);
+      return null;
+    }
   }
 
   private async sendExpenseSummary(user: any, phoneNumber: string) {

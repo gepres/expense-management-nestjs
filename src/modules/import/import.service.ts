@@ -169,7 +169,7 @@ export class ImportService {
     this.logger.log(`Uploading ${expenses.length} expenses for user ${userId}`);
 
     const firestore = this.firebaseService.getFirestore();
-    const gastosRef = firestore.collection('gastos');
+    const gastosRef = firestore.collection('expenses');
     const errors: ImportError[] = [];
     let imported = 0;
 
@@ -271,7 +271,7 @@ export class ImportService {
       const expenseDate = Timestamp.fromDate(new Date(expense.fecha));
 
       const snapshot = await firestore
-        .collection('gastos')
+        .collection('expenses')
         .where('userId', '==', userId)
         .where('fecha', '==', expenseDate)
         .where('monto', '==', expense.monto)

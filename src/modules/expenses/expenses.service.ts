@@ -26,7 +26,7 @@ export class ExpensesService {
     const startTimestamp = Timestamp.fromDate(startDate);
     const endTimestamp = Timestamp.fromDate(endDate);
 
-    const expensesRef = firestore.collection('gastos');
+    const expensesRef = firestore.collection('expenses');
 
     const snapshot = await expensesRef
       .where('userId', '==', userId)
@@ -101,11 +101,16 @@ export class ExpensesService {
 
   async create(userId: string, dto: CreateExpenseDto) {
     const firestore = this.firebaseService.getFirestore();
-    const docRef = firestore.collection('gastos').doc();
+    const docRef = firestore.collection('expenses').doc();
 
     const data: any = {
       userId,
-      ...dto,
+      categoria: dto.category,
+      subcategoria: dto.subcategory,
+      descripcion: dto.description,
+      metodoPago: dto.paymentMethod,
+      moneda: dto.currency,
+      monto: dto.amount,
       fecha: Timestamp.fromDate(new Date(dto.date)),
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
@@ -137,7 +142,7 @@ export class ExpensesService {
 
   async findAll(userId: string, query: ExpenseQueryDto) {
     const firestore = this.firebaseService.getFirestore();
-    let ref = firestore.collection('gastos').where('userId', '==', userId);
+    let ref = firestore.collection('expenses').where('userId', '==', userId);
 
     if (query.startDate) {
       ref = ref.where(
@@ -179,7 +184,7 @@ export class ExpensesService {
   async findOne(userId: string, id: string) {
     const doc = await this.firebaseService
       .getFirestore()
-      .collection('gastos')
+      .collection('expenses')
       .doc(id)
       .get();
     if (!doc.exists) throw new NotFoundException('Gasto no encontrado');
@@ -196,7 +201,7 @@ export class ExpensesService {
   async update(userId: string, id: string, dto: UpdateExpenseDto) {
     const docRef = this.firebaseService
       .getFirestore()
-      .collection('gastos')
+      .collection('expenses')
       .doc(id);
     const doc = await docRef.get();
     const data = doc.data();
@@ -216,7 +221,7 @@ export class ExpensesService {
   async remove(userId: string, id: string) {
     const docRef = this.firebaseService
       .getFirestore()
-      .collection('gastos')
+      .collection('expenses')
       .doc(id);
     const doc = await docRef.get();
     const data = doc.data();
