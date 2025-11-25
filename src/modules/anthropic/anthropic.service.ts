@@ -68,7 +68,7 @@ export class AnthropicService {
     }
   }
 
-  async extractReceiptData(imageBase64: string): Promise<any> {
+  async extractReceiptData(imageBase64: string, mimeType: string = 'image/jpeg'): Promise<any> {
     try {
       this.logger.log('Extracting receipt data with Claude Vision');
 
@@ -83,7 +83,7 @@ export class AnthropicService {
                 type: 'image',
                 source: {
                   type: 'base64',
-                  media_type: 'image/jpeg',
+                  media_type: mimeType as any,
                   data: imageBase64,
                 },
               },

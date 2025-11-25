@@ -1,5 +1,3 @@
-// whatsapp.controller.ts
-
 import { Controller, Post, Body, Headers, Logger, Res, HttpStatus } from '@nestjs/common';
 import type { Response } from 'express';
 import { WhatsappService } from './whatsapp.service';
@@ -8,6 +6,8 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { CategoriesService } from '../categories/categories.service';
 import { PaymentMethodsService } from '../payment-methods/payment-methods.service';
 import { ConfigService } from '@nestjs/config';
+import { AnthropicService } from '../anthropic/anthropic.service';
+import axios from 'axios';
 
 interface TwilioWebhookBody {
   MessageSid: string;
@@ -16,6 +16,8 @@ interface TwilioWebhookBody {
   To: string;
   Body: string;
   NumMedia?: string;
+  MediaUrl0?: string;
+  MediaContentType0?: string;
   [key: string]: any;
 }
 
@@ -30,6 +32,7 @@ export class WhatsappController {
     private categoriesService: CategoriesService,
     private paymentMethodsService: PaymentMethodsService,
     private configService: ConfigService,
+    private anthropicService: AnthropicService,
   ) {}
 
   @Post('webhook')
@@ -51,13 +54,13 @@ export class WhatsappController {
       const phoneNumber = body.From?.replace('whatsapp:', '') || '';
       const message = body.Body?.trim() || '';
 
-      if (!phoneNumber || !message) {
-        this.logger.error('❌ Missing phone number or message');
+      if (!phoneNumber) {
+        this.logger.error('❌ Missing phone number');
         return;
       }
 
       // Procesar el mensaje de forma asíncrona (sin bloquear la respuesta)
-      this.processMessageAsync(phoneNumber, message).catch(err => {
+      this.processMessageAsync(phoneNumber, message, body).catch(err => {
         this.logger.error('❌ Error processing message:', err);
       });
 
@@ -72,9 +75,9 @@ export class WhatsappController {
     }
   }
 
-  private async processMessageAsync(phoneNumber: string, message: string) {
+  private async processMessageAsync(phoneNumber: string, message: string, body: TwilioWebhookBody) {
     try {
-      this.logger.log(`🔄 Processing message from ${phoneNumber}: ${message}`);
+      this.logger.log(`🔄 Processing message from ${phoneNumber}`);
 
       // Verificar si el usuario está registrado
       const user = await this.checkUserRegistration(phoneNumber);
@@ -91,8 +94,17 @@ export class WhatsappController {
 
       this.logger.log(`✅ User found: ${user.id}`);
 
-      // Procesar el mensaje según el comando
-      await this.processMessage(user, phoneNumber, message);
+      const numMedia = parseInt(body.NumMedia || '0', 10);
+
+      if (numMedia > 0 && body.MediaUrl0) {
+        this.logger.log(`📷 Image received: ${body.MediaUrl0}`);
+        await this.processImageMessage(user, phoneNumber, body.MediaUrl0, body.MediaContentType0);
+      } else if (message) {
+        // Procesar el mensaje de texto según el comando
+        await this.processMessage(user, phoneNumber, message);
+      } else {
+        this.logger.warn('⚠️ Received message with no text and no media');
+      }
 
     } catch (error) {
       this.logger.error('❌ Error processing WhatsApp message:', error);
@@ -104,6 +116,97 @@ export class WhatsappController {
       } catch (sendError) {
         this.logger.error('❌ Error sending error message:', sendError);
       }
+    }
+  }
+
+  private async processImageMessage(user: any, phoneNumber: string, mediaUrl: string, contentType?: string) {
+    try {
+      await this.whatsappService.sendMessage(phoneNumber, '⏳ Procesando imagen...');
+
+      // 1. Descargar la imagen con autenticación básica de Twilio
+      const accountSid = this.configService.get<string>('TWILIO_ACCOUNT_SID');
+      const authToken = this.configService.get<string>('TWILIO_AUTH_TOKEN');
+      
+      const response = await axios.get(mediaUrl, { 
+        responseType: 'arraybuffer',
+        headers: {
+          Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`
+        }
+      });
+
+      const base64Image = Buffer.from(response.data, 'binary').toString('base64');
+      const mimeType = contentType || response.headers['content-type'] || 'image/jpeg';
+
+      // 2. Enviar a Anthropic para extracción
+      this.logger.log('🤖 Sending image to Anthropic for extraction...');
+      const extractionResult = await this.anthropicService.extractReceiptData(base64Image, mimeType);
+      
+      this.logger.log(`✅ Extraction result: ${JSON.stringify(extractionResult)}`);
+
+      if (!extractionResult) {
+        await this.whatsappService.sendMessage(phoneNumber, '❌ No pude extraer información de la imagen. Intenta enviando una foto más clara.');
+        return;
+      }
+
+      // 3. Validar y registrar el gasto
+      // Si es Yape/Plin, usarlos como método de pago. Si no, usar lo que detectó o 'Efectivo'
+      let paymentMethodId = 'efectivo'; // Default
+      
+      // Intentar mapear el método de pago detectado a los del usuario
+      if (extractionResult.paymentMethod) {
+        const detectedMethod = extractionResult.paymentMethod.toLowerCase();
+        if (detectedMethod.includes('yape')) paymentMethodId = 'yape';
+        else if (detectedMethod.includes('plin')) paymentMethodId = 'plin';
+        else if (detectedMethod.includes('transferencia')) paymentMethodId = 'transferencia';
+        else if (detectedMethod.includes('tarjeta')) paymentMethodId = 'tarjeta';
+      }
+
+      // Inferir categoría si no vino o mapearla
+      let categoryId = 'Otros';
+      let subcategoryId: string | null = null;
+
+      if (extractionResult.category) {
+        categoryId = await this.inferCategory(user.id, extractionResult.category);
+      }
+      
+      if (extractionResult.subcategory) {
+        subcategoryId = await this.inferSubCategory(user.id, categoryId, extractionResult.subcategory);
+      } else {
+         // Intentar inferir subcategoría con la descripción si no vino en el JSON
+         subcategoryId = await this.inferSubCategory(user.id, categoryId, extractionResult.description || extractionResult.merchant || '');
+      }
+
+      const amount = extractionResult.amount;
+      const description = extractionResult.description || extractionResult.merchant || 'Gasto detectado';
+      const date = extractionResult.date || new Date().toISOString();
+
+      // Registrar
+      await this.expenseService.create(user.id, {
+        amount,
+        concept: description,
+        category: categoryId,
+        subcategory: subcategoryId,
+        date: date,
+        paymentMethod: paymentMethodId,
+        currency: extractionResult.currency || 'PEN',
+      } as any);
+
+      // Confirmar
+      let confirmationMessage = `✅ Gasto registrado por imagen!\n\n` +
+        `💰 Monto: S/ ${amount.toFixed(2)}\n` +
+        `📝 Descripción: ${description}\n` +
+        `🏷️ Categoría: ${categoryId}\n` +
+        `💳 Método: ${paymentMethodId}`;
+      
+      if (subcategoryId) {
+        confirmationMessage += `\n📂 Subcategoría: ${subcategoryId}`;
+      }
+
+      await this.whatsappService.sendMessage(phoneNumber, confirmationMessage);
+
+    } catch (error) {
+      this.logger.error('❌ Error processing image message:', error);
+      await this.whatsappService.sendMessage(phoneNumber, '❌ Error al procesar la imagen. Asegúrate de que sea un comprobante válido.');
     }
   }
 
