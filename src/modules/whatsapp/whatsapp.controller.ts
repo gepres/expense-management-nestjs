@@ -1,6 +1,7 @@
-import { Controller, Post, Body, Headers, Logger, Res, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, Headers, Logger, Res, HttpStatus, UseGuards, Req } from '@nestjs/common';
 import type { Response } from 'express';
 import { WhatsappService } from './whatsapp.service';
+import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 import { FirebaseService } from '../firebase/firebase.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { CategoriesService } from '../categories/categories.service';
@@ -532,5 +533,97 @@ export class WhatsappController {
       `"ayuda"`;
 
     await this.whatsappService.sendMessage(phoneNumber, helpText);
+  }
+
+  @Post('link')
+  @UseGuards(FirebaseAuthGuard)
+  async linkWhatsApp(@Req() req: any, @Body() body: { phoneNumber: string }) {
+    const userId = req.user.uid;
+    const { phoneNumber } = body;
+
+    this.logger.log(`🔗 Linking WhatsApp for user ${userId}: ${phoneNumber}`);
+
+    if (!phoneNumber) {
+      throw new Error('Phone number is required');
+    }
+
+    // Validar formato (simple check, Twilio might need strict E.164)
+    if (!phoneNumber.startsWith('+')) {
+       throw new Error('Phone number must start with + and country code');
+    }
+
+    try {
+      const firestore = this.firebaseService.getFirestore();
+      
+      // Verificar si el número ya está registrado por otro usuario
+      const existingUserSnapshot = await firestore.collection('users')
+        .where('whatsappPhone', '==', phoneNumber)
+        .limit(1)
+        .get();
+
+      if (!existingUserSnapshot.empty) {
+        const existingUser = existingUserSnapshot.docs[0];
+        if (existingUser.id !== userId) {
+          throw new Error('Este número de WhatsApp ya está vinculado a otra cuenta.');
+        }
+      }
+
+      await firestore.collection('users').doc(userId).update({
+        whatsappPhone: phoneNumber,
+        whatsappLinkedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Send welcome message
+      await this.whatsappService.sendMessage(
+        phoneNumber,
+        '🎉 ¡Tu número de WhatsApp ha sido vinculado con éxito a tu Asistente de Gastos Inteligente!\n\n' +
+        '🚀 Ahora puedes registrar tus gastos de forma sencilla. Solo envía un mensaje con el monto y una breve descripción, por ejemplo:\n' +
+        '"50 almuerzo"\n' +
+        '"25.50 taxi"\n' +
+        '"100 en supermercado"\n\n' +
+        '📊 También puedes pedir un "resumen" de tus gastos diarios o escribir "ayuda" para ver todos los comandos.\n\n' +
+        '¡Estamos aquí para ayudarte a controlar tus finanzas!'
+      );
+
+      return { 
+        success: true, 
+        whatsappNumber: this.configService.get<string>('TWILIO_WHATSAPP_NUMBER') 
+      };
+    } catch (error) {
+      this.logger.error('Error linking WhatsApp:', error);
+      throw error;
+    }
+  }
+
+  @Post('unlink')
+  @UseGuards(FirebaseAuthGuard)
+  async unlinkWhatsApp(@Req() req: any) {
+    const userId = req.user.uid;
+    this.logger.log(`🔗 Unlinking WhatsApp for user ${userId}`);
+
+    try {
+      const firestore = this.firebaseService.getFirestore();
+      const userSnapshot = await firestore.collection('users').doc(userId).get();
+      const user = userSnapshot.data();
+      const phoneNumber = user?.whatsappPhone;
+      await firestore.collection('users').doc(userId).update({
+        whatsappPhone: null,
+        whatsappLinkedAt: null,
+        updatedAt: new Date().toISOString(),
+      });
+
+       // Send welcome message
+      await this.whatsappService.sendMessage(
+        phoneNumber,
+        '👋 ¡Tu número de WhatsApp ha sido desvinculado con éxito de tu Gestor de Gastos Inteligente! \n\n' +
+        'Lamentamos verte partir, pero esperamos que regreses pronto para seguir ayudándote a controlar tus finanzas. ¡Siempre estaremos aquí para ti! 😊'
+      );
+
+      return { success: true };
+    } catch (error) {
+      this.logger.error('Error unlinking WhatsApp:', error);
+      throw error;
+    }
   }
 }
