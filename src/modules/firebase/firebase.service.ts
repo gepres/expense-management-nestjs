@@ -60,10 +60,10 @@ export class FirebaseService implements OnModuleInit {
       this.auth = this.app.auth();
       this.storage = this.app.storage();
 
-      // Configurar Firestore
+      // Configurar Firestore con configuración optimizada para producción
       this.firestore.settings({
         ignoreUndefinedProperties: true,
-        preferRest: true, // CRÍTICO: Usar REST en lugar de gRPC para evitar timeouts en Vercel
+        preferRest: true, // Usar REST API en lugar de gRPC (más estable en algunos entornos)
       });
 
       this.logger.log('Firebase Admin SDK initialized successfully');
