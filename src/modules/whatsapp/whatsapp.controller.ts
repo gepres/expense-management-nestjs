@@ -36,7 +36,7 @@ export class WhatsappController {
     private anthropicService: AnthropicService,
   ) {}
 
-  @Post('webhook')
+  @Post('webhook-old')
   async handleIncomingMessage(
     @Body() body: TwilioWebhookBody,
     @Headers('x-twilio-signature') signature: string,

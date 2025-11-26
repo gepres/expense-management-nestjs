@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { WhatsappController } from './whatsapp.controller';
+import { WhatsappQueueController } from './whatsapp-queue.controller';
 import { WhatsappService } from './whatsapp.service';
 import { ConfigModule } from '@nestjs/config';
 import { FirebaseModule } from '../firebase/firebase.module';
@@ -15,7 +16,7 @@ import { PaymentMethodsModule } from '../payment-methods/payment-methods.module'
     CategoriesModule,
     PaymentMethodsModule,
   ],
-  controllers: [WhatsappController],
+  controllers: [WhatsappController, WhatsappQueueController],
   providers: [WhatsappService],
   exports: [WhatsappService],
 })
