@@ -26,4 +26,29 @@ export class CreateSharedBudgetDto {
   @IsOptional()
   @IsString()
   paymentMethod?: string;
+
+  @ApiPropertyOptional({ example: '2025-11-26' })
+  @IsOptional()
+  @IsString()
+  date?: string;  
+
+  @ApiPropertyOptional({ example: '23:45:52' })
+  @IsOptional()
+  @IsString()
+  time?: string;
+
+  @ApiPropertyOptional({ example: 'Factura' })
+  @IsOptional()
+  @IsString()
+  voucherType?: string;
+
+  @ApiPropertyOptional({ example: '123456' })
+  @IsOptional()
+  @IsString()
+  voucherNumber?: string;
+
+  @ApiPropertyOptional({ example: '123456' })
+  @IsOptional()
+  @IsString()
+  ruc?: string;
 }

@@ -27,6 +27,11 @@ export class CreateSharedExpenseDto {
   @IsString()
   date?: string;
 
+  @ApiPropertyOptional({ example: '23:45:52' })
+  @IsOptional()
+  @IsString()
+  time?: string;
+
   @ApiPropertyOptional({ example: 'userId123', description: 'Si no se especifica, se usa el usuario actual' })
   @IsOptional()
   @IsString()
@@ -42,4 +47,19 @@ export class CreateSharedExpenseDto {
   @IsOptional()
   @IsString()
   paymentMethod?: string;
+
+  @ApiPropertyOptional({ example: 'Factura' })
+  @IsOptional()
+  @IsString()
+  voucherType?: string;
+
+  @ApiPropertyOptional({ example: '123456' })
+  @IsOptional()
+  @IsString()
+  voucherNumber?: string;
+
+  @ApiPropertyOptional({ example: '123456' })
+  @IsOptional()
+  @IsString()
+  ruc?: string;
 }
