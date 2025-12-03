@@ -7,6 +7,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Delete,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -51,6 +52,21 @@ export class UsersController {
     @Body() updateProfileDto: UpdateProfileDto,
   ) {
     return this.usersService.updateProfile(user.uid, updateProfileDto);
+  }
+
+  @Delete('profile')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Eliminar cuenta de usuario y todos sus datos' })
+  @ApiResponse({
+    status: 200,
+    description: 'Cuenta eliminada exitosamente',
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  async deleteProfile(@CurrentUser() user: FirebaseUser) {
+    await this.usersService.deleteProfile(user.uid);
+    return {
+      message: 'Account deleted successfully',
+    };
   }
 
   @Post('initialize')

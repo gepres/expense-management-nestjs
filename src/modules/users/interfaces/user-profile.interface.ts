@@ -11,6 +11,8 @@ export interface UserProfile {
     currency: string;
     language: string;
   };
+  whatsappPhone?: string;
+  whatsappLinkedAt?: Date | Timestamp;
 }
 
 export interface UserPreferences {
