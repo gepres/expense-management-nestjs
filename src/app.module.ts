@@ -22,6 +22,8 @@ import { VoiceModule } from './modules/voice/voice.module';
 import { SharedModule } from './modules/shared/shared.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { ShoppingListsModule } from './modules/shopping-lists/shopping-lists.module';
+import { AccountsModule } from './modules/accounts/accounts.module';
+import { TransfersModule } from './modules/transfers/transfers.module';
 
 
 @Module({
@@ -63,6 +65,8 @@ import { ShoppingListsModule } from './modules/shopping-lists/shopping-lists.mod
     SharedModule,
     WhatsappModule,
     ShoppingListsModule,
+    AccountsModule,
+    TransfersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

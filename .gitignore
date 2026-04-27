@@ -44,6 +44,9 @@ lerna-debug.log*
 firebase-service-account.json
 firebase-adminsdk-*.json
 
+# Backups Firestore (generados por scripts/backup-firestore.js)
+/backups
+
 # Uploads
 /uploads/*
 !uploads/.gitkeep
