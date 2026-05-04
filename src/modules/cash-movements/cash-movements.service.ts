@@ -32,6 +32,7 @@ export class CashMovementsService {
       date: data.date.toDate().toISOString(),
       createdAt: data.createdAt.toDate().toISOString(),
       updatedAt: data.updatedAt.toDate().toISOString(),
+      revertedAt: data.revertedAt ? data.revertedAt.toDate().toISOString() : undefined,
     };
   }
 
@@ -151,6 +152,106 @@ export class CashMovementsService {
   }
 
   // ==========================================================================
+  // REVERT — contra-asiento idempotente
+  // ==========================================================================
+
+  /**
+   * Revierte un cash-movement creando un nuevo registro tipo `reversal` que
+   * deshace el efecto sobre los saldos. El movimiento original queda marcado
+   * con `revertedBy` para evitar revertir dos veces.
+   *
+   * Reglas:
+   *  - No se puede revertir un movimiento que ya tiene `revertedBy`.
+   *  - No se puede revertir un movimiento de tipo 'reversal' (no se anidan).
+   *  - La operación es atómica: o se actualiza original + crea reversal +
+   *    ajusta saldos, o nada.
+   */
+  async revert(userId: string, id: string): Promise<CashMovement> {
+    const firestore = this.firebaseService.getFirestore();
+    const originalRef = firestore.collection(COLLECTION).doc(id);
+    const reversalRef = firestore.collection(COLLECTION).doc();
+
+    const result = await firestore.runTransaction(async (tx) => {
+      const originalSnap = await tx.get(originalRef);
+      if (!originalSnap.exists) {
+        throw new NotFoundException('Movimiento no encontrado');
+      }
+      const original = originalSnap.data() as CashMovementDocument;
+      if (original.userId !== userId) {
+        throw new NotFoundException('Movimiento no encontrado');
+      }
+      if (original.type === 'reversal') {
+        throw new ConflictException('No se puede revertir un movimiento de tipo reversal');
+      }
+      if (original.revertedBy) {
+        throw new ConflictException('Este movimiento ya fue revertido');
+      }
+
+      const accountRef = firestore.collection(ACCOUNTS_COLLECTION).doc(original.accountId);
+      const accountSnap = await tx.get(accountRef);
+      if (!accountSnap.exists) {
+        throw new NotFoundException('Cuenta no encontrada');
+      }
+      const account = accountSnap.data() as AccountDocument;
+      if (account.status === 'archived') {
+        throw new ConflictException(
+          'No se puede revertir un movimiento de una cuenta archivada',
+        );
+      }
+
+      const now = Timestamp.now();
+
+      // Calcular el efecto OPUESTO al original.
+      let newBank = account.bankBalance;
+      let newCash = account.cashBalance;
+      if (original.type === 'withdrawal') {
+        // Original: bank -= amount, cash += amount  →  reverso opuesto
+        newBank += original.amount;
+        newCash -= original.amount;
+      } else if (original.type === 'deposit_cash') {
+        newBank -= original.amount;
+        newCash += original.amount;
+      } else if (original.type === 'income') {
+        const dest = original.destination ?? 'bank';
+        if (dest === 'cash') newCash -= original.amount;
+        else newBank -= original.amount;
+      }
+
+      const reversalDoc: CashMovementDocument = {
+        userId,
+        accountId: original.accountId,
+        type: 'reversal',
+        amount: original.amount,
+        currency: original.currency,
+        description: `Reverso de "${original.description ?? original.type}"`,
+        revertsMovementId: id,
+        date: now,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      tx.set(reversalRef, reversalDoc);
+      tx.update(originalRef, {
+        revertedBy: reversalRef.id,
+        revertedAt: now,
+        updatedAt: now,
+      });
+      tx.update(accountRef, {
+        bankBalance: newBank,
+        cashBalance: newCash,
+        updatedAt: now,
+      });
+
+      return { id: reversalRef.id, doc: reversalDoc };
+    });
+
+    this.logger.log(
+      `Reversal ${result.id}: reverts ${id} amount=${result.doc.amount}`,
+    );
+    return this.toCashMovement(result.id, result.doc);
+  }
+
+  // ==========================================================================
   // QUERY
   // ==========================================================================
 
@@ -205,37 +306,73 @@ export class CashMovementsService {
         throw new NotFoundException('Movimiento no encontrado');
       }
 
+      // Si el movimiento ya fue revertido, también borrar el reverso para
+      // dejar el estado consistente (revertir+borrar = tal cual borrado).
+      let reversalRef: FirebaseFirestore.DocumentReference | null = null;
+      let reversal: CashMovementDocument | null = null;
+      if (movement.revertedBy) {
+        reversalRef = firestore.collection(COLLECTION).doc(movement.revertedBy);
+        const reversalSnap = await tx.get(reversalRef);
+        if (reversalSnap.exists) {
+          reversal = reversalSnap.data() as CashMovementDocument;
+        }
+      }
+
       const accountRef = firestore
         .collection(ACCOUNTS_COLLECTION)
         .doc(movement.accountId);
       const accountSnap = await tx.get(accountRef);
       const now = Timestamp.now();
 
-      // Si la cuenta sigue existiendo, revertir saldos.
+      // Si la cuenta sigue existiendo, ajustar saldos.
       if (accountSnap.exists) {
         const account = accountSnap.data() as AccountDocument;
-        let newBank: number;
-        let newCash: number;
-        if (movement.type === 'withdrawal') {
-          // Original: bank→cash. Reverso: cash→bank
-          newBank = account.bankBalance + movement.amount;
-          newCash = account.cashBalance - movement.amount;
-        } else if (movement.type === 'deposit_cash') {
-          // Original: cash→bank. Reverso: bank→cash
-          newBank = account.bankBalance - movement.amount;
-          newCash = account.cashBalance + movement.amount;
-        } else {
-          // income: el reverso es retirar el monto del sub-saldo destino.
-          // Default destination histórico = 'bank' (compat con docs viejos).
-          const dest = movement.destination ?? 'bank';
-          if (dest === 'cash') {
-            newBank = account.bankBalance;
-            newCash = account.cashBalance - movement.amount;
-          } else {
-            newBank = account.bankBalance - movement.amount;
-            newCash = account.cashBalance;
+        let newBank = account.bankBalance;
+        let newCash = account.cashBalance;
+
+        // Si NO fue revertido: aplicar el reverso del original.
+        // Si SÍ fue revertido: el saldo ya está como antes del original;
+        // solo necesitamos borrar ambos sin tocarlo.
+        if (!reversal) {
+          if (movement.type === 'withdrawal') {
+            newBank += movement.amount;
+            newCash -= movement.amount;
+          } else if (movement.type === 'deposit_cash') {
+            newBank -= movement.amount;
+            newCash += movement.amount;
+          } else if (movement.type === 'income') {
+            const dest = movement.destination ?? 'bank';
+            if (dest === 'cash') newCash -= movement.amount;
+            else newBank -= movement.amount;
+          } else if (movement.type === 'reversal' && movement.revertsMovementId) {
+            // Borrar un reversal: el saldo está revertido, restaurar el efecto
+            // original Y limpiar el flag `revertedBy` del original.
+            const origRef = firestore
+              .collection(COLLECTION)
+              .doc(movement.revertsMovementId);
+            const origSnap = await tx.get(origRef);
+            if (origSnap.exists) {
+              const orig = origSnap.data() as CashMovementDocument;
+              if (orig.type === 'withdrawal') {
+                newBank -= orig.amount;
+                newCash += orig.amount;
+              } else if (orig.type === 'deposit_cash') {
+                newBank += orig.amount;
+                newCash -= orig.amount;
+              } else if (orig.type === 'income') {
+                const dest = orig.destination ?? 'bank';
+                if (dest === 'cash') newCash += orig.amount;
+                else newBank += orig.amount;
+              }
+              tx.update(origRef, {
+                revertedBy: null,
+                revertedAt: null,
+                updatedAt: now,
+              });
+            }
           }
         }
+
         tx.update(accountRef, {
           bankBalance: newBank,
           cashBalance: newCash,
@@ -244,6 +381,7 @@ export class CashMovementsService {
       }
 
       tx.delete(movementRef);
+      if (reversalRef) tx.delete(reversalRef);
     });
 
     this.logger.log(`Cash movement reverted and deleted: ${id}`);

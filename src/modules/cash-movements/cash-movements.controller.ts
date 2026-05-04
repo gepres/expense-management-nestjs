@@ -97,6 +97,19 @@ export class CashMovementsController {
     return this.service.findOne(user.uid, id);
   }
 
+  @Post('cash-movements/:id/revert')
+  @ApiOperation({
+    summary: 'Revertir un movimiento (crea contra-asiento, idempotente)',
+    description:
+      'Crea un nuevo registro tipo `reversal` que deshace el efecto del original sobre los saldos. El original queda marcado como revertido y no se puede revertir de nuevo.',
+  })
+  @ApiResponse({ status: 201, description: 'Reverso creado' })
+  @ApiResponse({ status: 404, description: 'Movimiento no encontrado' })
+  @ApiResponse({ status: 409, description: 'Ya fue revertido o no se puede revertir' })
+  revert(@CurrentUser() user: FirebaseUser, @Param('id') id: string) {
+    return this.service.revert(user.uid, id);
+  }
+
   @Delete('cash-movements/:id')
   @ApiOperation({
     summary: 'Eliminar movimiento (revierte saldos atómicamente)',

@@ -9,10 +9,17 @@ import { Timestamp } from 'firebase-admin/firestore';
  *                    aumenta el saldo total de la cuenta. En modelo Opción B
  *                    "la cuenta es el presupuesto general" → este movimiento
  *                    incrementa el presupuesto disponible del mes.)
- *
- * Inmutable: para corregir → delete + create.
+ *   - reversal:      contra-asiento de un movimiento previo. Su efecto sobre
+ *                    los saldos es exactamente el OPUESTO del original. Se
+ *                    crea via POST /cash-movements/:id/revert. Solo se puede
+ *                    revertir una vez (campo `revertedBy` se setea en el
+ *                    original).
  */
-export type CashMovementType = 'withdrawal' | 'deposit_cash' | 'income';
+export type CashMovementType =
+  | 'withdrawal'
+  | 'deposit_cash'
+  | 'income'
+  | 'reversal';
 
 /**
  * Origen del ingreso (solo aplica cuando type='income').
@@ -54,15 +61,22 @@ export interface CashMovementDocument {
   source?: IncomeSource;
   /** Solo presente cuando type='income'. Default 'bank'. */
   destination?: IncomeDestination;
+  /** Solo presente cuando type='reversal': id del movimiento que revierte. */
+  revertsMovementId?: string;
+  /** Cuando un movimiento fue revertido, guarda el id del 'reversal'. */
+  revertedBy?: string;
+  /** Timestamp en que fue revertido. */
+  revertedAt?: Timestamp;
   date: Timestamp;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
 
 export interface CashMovement
-  extends Omit<CashMovementDocument, 'date' | 'createdAt' | 'updatedAt'> {
+  extends Omit<CashMovementDocument, 'date' | 'createdAt' | 'updatedAt' | 'revertedAt'> {
   id: string;
   date: string;
   createdAt: string;
   updatedAt: string;
+  revertedAt?: string;
 }
