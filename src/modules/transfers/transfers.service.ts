@@ -106,13 +106,13 @@ export class TransfersService {
 
       tx.set(transferRef, transferDoc);
 
-      // Actualizar saldos atomicamente
+      // Actualizar saldos atomicamente — las transfers afectan SOLO bankBalance
       tx.update(fromRef, {
-        currentBalance: from.currentBalance - dto.amount - fee,
+        bankBalance: from.bankBalance - dto.amount - fee,
         updatedAt: now,
       });
       tx.update(toRef, {
-        currentBalance: to.currentBalance + amountConverted,
+        bankBalance: to.bankBalance + amountConverted,
         updatedAt: now,
       });
 
@@ -219,18 +219,18 @@ export class TransfersService {
 
       const now = Timestamp.now();
 
-      // Revertir saldos. Si una cuenta fue eliminada, omitir su reverso.
+      // Revertir saldos en bankBalance. Si una cuenta fue eliminada, omitir su reverso.
       if (fromSnap.exists) {
         const from = fromSnap.data() as AccountDocument;
         tx.update(fromRef, {
-          currentBalance: from.currentBalance + transfer.amount + (transfer.fee ?? 0),
+          bankBalance: from.bankBalance + transfer.amount + (transfer.fee ?? 0),
           updatedAt: now,
         });
       }
       if (toSnap.exists) {
         const to = toSnap.data() as AccountDocument;
         tx.update(toRef, {
-          currentBalance: to.currentBalance - (transfer.amountConverted ?? transfer.amount),
+          bankBalance: to.bankBalance - (transfer.amountConverted ?? transfer.amount),
           updatedAt: now,
         });
       }

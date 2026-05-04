@@ -1,12 +1,35 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { FirebaseService } from '../firebase/firebase.service';
 import { AnthropicService } from '../anthropic/anthropic.service';
+import { AccountDocument } from '../accounts/interfaces/account.interface';
+import { PresupuestosService } from '../presupuestos/presupuestos.service';
+import { BucketAlert } from '../presupuestos/interfaces/presupuesto.interface';
 import { GetExpensesFilterDto } from './dto/get-expenses-filter.dto';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { ExpenseQueryDto } from './dto/expense-query.dto';
 import * as ExcelJS from 'exceljs';
 import { Timestamp } from 'firebase-admin/firestore';
+
+/** Convierte una fecha a "YYYY-MM" para indexar buckets de presupuesto. */
+function toMesKey(fecha: Date | string): string {
+  const d = fecha instanceof Date ? fecha : new Date(fecha);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * Determina qué sub-saldo de la cuenta afecta un gasto según su método de pago.
+ * - 'efectivo' → cashBalance
+ * - cualquier otro (yape, plin, tarjeta_*, transferencia, otros) → bankBalance
+ */
+function targetBalanceField(metodoPago: string | undefined): 'bankBalance' | 'cashBalance' {
+  return metodoPago === 'efectivo' ? 'cashBalance' : 'bankBalance';
+}
 
 @Injectable()
 export class ExpensesService {
@@ -15,7 +38,39 @@ export class ExpensesService {
   constructor(
     private readonly firebaseService: FirebaseService,
     private readonly anthropicService: AnthropicService,
+    private readonly presupuestosService: PresupuestosService,
   ) {}
+
+  /**
+   * Tras una mutación de gasto, devuelve el estado del bucket categoría
+   * afectado (si existe presupuesto). Permite al frontend mostrar alerta
+   * "Categoría sobregirada" sin tener que volver a pedir el resumen completo.
+   *
+   * No lanza si no hay bucket configurado: simplemente devuelve null.
+   * Errores se loguean y no propagan — el gasto ya se persistió.
+   */
+  private async safeBucketStatus(
+    userId: string,
+    accountId: string,
+    fecha: Date | string,
+    categoria: string,
+  ): Promise<BucketAlert | null> {
+    try {
+      return await this.presupuestosService.getBucketStatus(
+        userId,
+        accountId,
+        toMesKey(fecha),
+        categoria,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `safeBucketStatus failed (account=${accountId}, cat=${categoria}): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return null;
+    }
+  }
 
   async getExpensesByDateRange(userId: string, month: number, year: number) {
     const firestore = this.firebaseService.getFirestore();
@@ -99,28 +154,73 @@ export class ExpensesService {
 
   // --- CRUD Methods ---
 
+  /**
+   * Crea un gasto y descuenta el monto del sub-saldo correspondiente de la
+   * cuenta (bankBalance o cashBalance según metodoPago) en una sola transaction.
+   */
   async create(userId: string, dto: CreateExpenseDto) {
+    if (!isFinite(dto.monto) || dto.monto <= 0) {
+      throw new BadRequestException('El monto debe ser mayor a 0');
+    }
+
     const firestore = this.firebaseService.getFirestore();
-    const docRef = firestore.collection('expenses').doc();
+    const expenseRef = firestore.collection('expenses').doc();
+    const accountRef = firestore.collection('accounts').doc(dto.accountId);
 
-    const data: any = {
-      userId,
-      categoria: dto.category,
-      subcategoria: dto.subcategory,
-      descripcion: dto.description,
-      metodoPago: dto.paymentMethod,
-      moneda: dto.currency,
-      monto: dto.amount,
-      fecha: Timestamp.fromDate(new Date(dto.date)),
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
-    };
+    const result = await firestore.runTransaction(async (tx) => {
+      const accountSnap = await tx.get(accountRef);
+      if (!accountSnap.exists) {
+        throw new NotFoundException('Cuenta no encontrada');
+      }
+      const account = accountSnap.data() as AccountDocument;
+      if (account.userId !== userId) {
+        throw new NotFoundException('Cuenta no encontrada');
+      }
+      if (account.currency !== dto.moneda) {
+        throw new BadRequestException(
+          `La moneda del gasto (${dto.moneda}) no coincide con la cuenta (${account.currency})`,
+        );
+      }
 
-    delete data.date;
+      const now = Timestamp.now();
+      const field = targetBalanceField(dto.metodoPago);
+      const newBalance = account[field] - dto.monto;
 
-    await docRef.set(data);
+      // Persistir gasto
+      const expenseData: any = {
+        userId,
+        accountId: dto.accountId,
+        categoria: dto.categoria,
+        descripcion: dto.descripcion ?? '',
+        metodoPago: dto.metodoPago,
+        moneda: dto.moneda,
+        monto: dto.monto,
+        fecha: Timestamp.fromDate(new Date(dto.fecha)),
+        createdAt: now,
+        updatedAt: now,
+      };
+      if (dto.subcategoria) expenseData.subcategoria = dto.subcategoria;
+      if (dto.comercio) expenseData.comercio = dto.comercio;
+      if (dto.tags && dto.tags.length > 0) expenseData.tags = dto.tags;
+      if (dto.recurrente) expenseData.recurrente = dto.recurrente;
+      if (dto.shoppingListId) expenseData.shoppingListId = dto.shoppingListId;
+      if (dto.voucherType) expenseData.voucherType = dto.voucherType;
+      if (dto.voucherNumber) expenseData.voucherNumber = dto.voucherNumber;
+      if (dto.ruc) expenseData.ruc = dto.ruc;
+      if (dto.igv !== undefined) expenseData.igv = dto.igv;
+      if (dto.subtotal !== undefined) expenseData.subtotal = dto.subtotal;
+      if (dto.reimbursementStatus) expenseData.reimbursementStatus = dto.reimbursementStatus;
 
-    // Si se proporciona shoppingListId, actualizar el estado a "archived"
+      tx.set(expenseRef, expenseData);
+      tx.update(accountRef, {
+        [field]: newBalance,
+        updatedAt: now,
+      });
+
+      return { id: expenseRef.id, data: expenseData };
+    });
+
+    // Side-effect no transactional: archivar shopping list (no afecta saldo)
     if (dto.shoppingListId) {
       try {
         await firestore
@@ -133,11 +233,27 @@ export class ExpensesService {
         this.logger.log(`Shopping list ${dto.shoppingListId} archived after expense creation`);
       } catch (error) {
         this.logger.warn(`Failed to archive shopping list ${dto.shoppingListId}`, error);
-        // No lanzamos error para no bloquear la creación del gasto
       }
     }
 
-    return { id: docRef.id, ...data, fecha: dto.date };
+    this.logger.log(
+      `Expense ${result.id}: ${dto.monto} ${dto.moneda} from account ${dto.accountId} (${dto.metodoPago})`,
+    );
+
+    // Post-commit: chequear bucket categoría (no bloquea, solo informa).
+    const bucketAlert = await this.safeBucketStatus(
+      userId,
+      dto.accountId,
+      dto.fecha,
+      dto.categoria,
+    );
+    if (bucketAlert?.excede) {
+      this.logger.warn(
+        `Bucket "${dto.categoria}" sobregirado: gastado=${bucketAlert.gastado} > limite=${bucketAlert.limite} (account=${dto.accountId})`,
+      );
+    }
+
+    return { id: result.id, ...result.data, fecha: dto.fecha, bucketAlert };
   }
 
   async findAll(userId: string, query: ExpenseQueryDto) {
@@ -198,37 +314,223 @@ export class ExpensesService {
     };
   }
 
+  /**
+   * Actualiza un gasto manteniendo los saldos consistentes.
+   *
+   * Si cambia `accountId`, `metodoPago` o `monto`, el ajuste de saldos se hace
+   * en una sola transaction:
+   *   1. Suma de vuelta el monto original al sub-saldo original.
+   *   2. Resta el monto nuevo del sub-saldo nuevo (que puede estar en otra cuenta).
+   */
   async update(userId: string, id: string, dto: UpdateExpenseDto) {
-    const docRef = this.firebaseService
-      .getFirestore()
-      .collection('expenses')
-      .doc(id);
-    const doc = await docRef.get();
-    const data = doc.data();
-    if (!doc.exists || !data || data.userId !== userId)
-      throw new NotFoundException('Gasto no encontrado');
+    const firestore = this.firebaseService.getFirestore();
+    const expenseRef = firestore.collection('expenses').doc(id);
 
-    const updates: any = { ...dto, updatedAt: Timestamp.now() };
-    if (dto.date) {
-      updates.fecha = Timestamp.fromDate(new Date(dto.date));
-      delete updates.date;
+    const result = await firestore.runTransaction(async (tx) => {
+      const expenseSnap = await tx.get(expenseRef);
+      if (!expenseSnap.exists) {
+        throw new NotFoundException('Gasto no encontrado');
+      }
+      const before = expenseSnap.data() as any;
+      if (before.userId !== userId) {
+        throw new NotFoundException('Gasto no encontrado');
+      }
+
+      const newAccountId = dto.accountId ?? before.accountId;
+      const newAmount = dto.monto ?? before.monto;
+      const newMetodoPago = dto.metodoPago ?? before.metodoPago;
+      const newMoneda = dto.moneda ?? before.moneda;
+
+      if (!isFinite(newAmount) || newAmount <= 0) {
+        throw new BadRequestException('El monto debe ser mayor a 0');
+      }
+
+      const balanceChanged =
+        newAccountId !== before.accountId ||
+        newAmount !== before.monto ||
+        newMetodoPago !== before.metodoPago;
+
+      // Cargar cuentas afectadas y calcular ajustes ANTES de cualquier write
+      let oldAccountRef: FirebaseFirestore.DocumentReference | null = null;
+      let oldAccountData: AccountDocument | null = null;
+      let newAccountRef: FirebaseFirestore.DocumentReference | null = null;
+      let newAccountData: AccountDocument | null = null;
+
+      if (balanceChanged && before.accountId) {
+        oldAccountRef = firestore.collection('accounts').doc(before.accountId);
+        const oldSnap = await tx.get(oldAccountRef);
+        if (oldSnap.exists) {
+          oldAccountData = oldSnap.data() as AccountDocument;
+        }
+
+        if (newAccountId === before.accountId) {
+          newAccountRef = oldAccountRef;
+          newAccountData = oldAccountData;
+        } else {
+          newAccountRef = firestore.collection('accounts').doc(newAccountId);
+          const newSnap = await tx.get(newAccountRef);
+          if (!newSnap.exists) {
+            throw new NotFoundException('Nueva cuenta no encontrada');
+          }
+          newAccountData = newSnap.data() as AccountDocument;
+          if (newAccountData.userId !== userId) {
+            throw new NotFoundException('Nueva cuenta no encontrada');
+          }
+          if (newAccountData.currency !== newMoneda) {
+            throw new BadRequestException(
+              `La moneda del gasto (${newMoneda}) no coincide con la cuenta (${newAccountData.currency})`,
+            );
+          }
+        }
+      }
+
+      const now = Timestamp.now();
+
+      // Aplicar ajustes
+      if (balanceChanged) {
+        // 1. Devolver el monto original a su sub-saldo original
+        if (oldAccountRef && oldAccountData) {
+          const oldField = targetBalanceField(before.metodoPago);
+          tx.update(oldAccountRef, {
+            [oldField]: oldAccountData[oldField] + before.monto,
+            updatedAt: now,
+          });
+          // Si la nueva cuenta es la misma, sincronizamos en memoria
+          if (newAccountRef === oldAccountRef && newAccountData) {
+            newAccountData = {
+              ...newAccountData,
+              [oldField]: oldAccountData[oldField] + before.monto,
+            } as AccountDocument;
+          }
+        }
+        // 2. Restar el monto nuevo de su sub-saldo nuevo
+        if (newAccountRef && newAccountData) {
+          const newField = targetBalanceField(newMetodoPago);
+          tx.update(newAccountRef, {
+            [newField]: newAccountData[newField] - newAmount,
+            updatedAt: now,
+          });
+        }
+      }
+
+      // Construir patch del expense (todos los campos posibles)
+      const updates: any = { updatedAt: now };
+      if (dto.accountId !== undefined) updates.accountId = dto.accountId;
+      if (dto.monto !== undefined) updates.monto = dto.monto;
+      if (dto.moneda !== undefined) updates.moneda = dto.moneda;
+      if (dto.categoria !== undefined) updates.categoria = dto.categoria;
+      if (dto.subcategoria !== undefined) updates.subcategoria = dto.subcategoria;
+      if (dto.descripcion !== undefined) updates.descripcion = dto.descripcion;
+      if (dto.metodoPago !== undefined) updates.metodoPago = dto.metodoPago;
+      if (dto.comercio !== undefined) updates.comercio = dto.comercio;
+      if (dto.tags !== undefined) updates.tags = dto.tags;
+      if (dto.recurrente !== undefined) updates.recurrente = dto.recurrente;
+      if (dto.fecha !== undefined) {
+        updates.fecha = Timestamp.fromDate(new Date(dto.fecha));
+      }
+      if (dto.voucherType !== undefined) updates.voucherType = dto.voucherType;
+      if (dto.voucherNumber !== undefined) updates.voucherNumber = dto.voucherNumber;
+      if (dto.ruc !== undefined) updates.ruc = dto.ruc;
+      if (dto.igv !== undefined) updates.igv = dto.igv;
+      if (dto.subtotal !== undefined) updates.subtotal = dto.subtotal;
+      if (dto.reimbursementStatus !== undefined) updates.reimbursementStatus = dto.reimbursementStatus;
+
+      tx.update(expenseRef, updates);
+      return { before, updates };
+    });
+
+    // Post-commit: alertas de bucket. Si cambió categoría, accountId o fecha,
+    // pueden quedar afectados DOS buckets (el anterior y el nuevo).
+    const beforeData = result.before;
+    const updates = result.updates;
+    const newCategoria = updates.categoria ?? beforeData.categoria;
+    const newAccountId = updates.accountId ?? beforeData.accountId;
+    const newFecha = updates.fecha
+      ? (updates.fecha as Timestamp).toDate()
+      : (beforeData.fecha as Timestamp).toDate();
+
+    const bucketAlert = await this.safeBucketStatus(
+      userId,
+      newAccountId,
+      newFecha,
+      newCategoria,
+    );
+
+    let previousBucketAlert: BucketAlert | null = null;
+    const previousMes = toMesKey((beforeData.fecha as Timestamp).toDate());
+    const newMes = toMesKey(newFecha);
+    const bucketChanged =
+      beforeData.categoria !== newCategoria ||
+      beforeData.accountId !== newAccountId ||
+      previousMes !== newMes;
+    if (bucketChanged) {
+      previousBucketAlert = await this.safeBucketStatus(
+        userId,
+        beforeData.accountId,
+        (beforeData.fecha as Timestamp).toDate(),
+        beforeData.categoria,
+      );
     }
 
-    await docRef.update(updates);
-    return { id, ...doc.data(), ...updates };
+    return {
+      id,
+      ...beforeData,
+      ...updates,
+      bucketAlert,
+      previousBucketAlert,
+    };
   }
 
+  /**
+   * Borra un gasto y devuelve el monto al sub-saldo correspondiente atomicamente.
+   */
   async remove(userId: string, id: string) {
-    const docRef = this.firebaseService
-      .getFirestore()
-      .collection('expenses')
-      .doc(id);
-    const doc = await docRef.get();
-    const data = doc.data();
-    if (!doc.exists || !data || data.userId !== userId)
-      throw new NotFoundException('Gasto no encontrado');
-    await docRef.delete();
-    return { id, message: 'Gasto eliminado' };
+    const firestore = this.firebaseService.getFirestore();
+    const expenseRef = firestore.collection('expenses').doc(id);
+
+    const removed = await firestore.runTransaction(async (tx) => {
+      const expenseSnap = await tx.get(expenseRef);
+      if (!expenseSnap.exists) {
+        throw new NotFoundException('Gasto no encontrado');
+      }
+      const data = expenseSnap.data() as any;
+      if (data.userId !== userId) {
+        throw new NotFoundException('Gasto no encontrado');
+      }
+
+      // Si tiene accountId, devolver el monto al sub-saldo
+      if (data.accountId) {
+        const accountRef = firestore.collection('accounts').doc(data.accountId);
+        const accountSnap = await tx.get(accountRef);
+        if (accountSnap.exists) {
+          const account = accountSnap.data() as AccountDocument;
+          const field = targetBalanceField(data.metodoPago);
+          tx.update(accountRef, {
+            [field]: account[field] + data.monto,
+            updatedAt: Timestamp.now(),
+          });
+        }
+      }
+
+      tx.delete(expenseRef);
+      return data;
+    });
+
+    this.logger.log(`Expense ${id} removed and balance reverted`);
+
+    // Post-commit: el bucket categoría afectado pudo dejar de exceder.
+    // Devolvemos su nuevo estado para que el frontend lo refresque.
+    let bucketAlert: BucketAlert | null = null;
+    if (removed?.accountId && removed.categoria) {
+      bucketAlert = await this.safeBucketStatus(
+        userId,
+        removed.accountId,
+        (removed.fecha as Timestamp).toDate(),
+        removed.categoria,
+      );
+    }
+
+    return { id, message: 'Gasto eliminado', bucketAlert };
   }
 
   async parseExpenseText(userId: string, text: string) {

@@ -1,22 +1,18 @@
 /**
  * Tipos de cuenta soportados.
  *
- * - cash:     Efectivo en bolsillo / billetera física.
+ * El "efectivo" NO es un tipo de cuenta. Cada cuenta real (banco, wallet, etc.)
+ * tiene 2 sub-saldos: `bankBalance` (en la cuenta) y `cashBalance` (retirado).
+ * El efectivo del usuario es la vista agregada de los `cashBalance` de todas
+ * sus cuentas activas.
+ *
  * - bank:     Cuenta bancaria (corriente, ahorros). Combinada con `bank` (nombre del banco).
+ * - savings:  Cuenta de ahorros (sub-tipo de bank, mostrada distinta en UI).
  * - wallet:   Billetera digital (Yape, Plin, PayPal, etc.).
  * - card:     Tarjeta de crédito/débito (modelo simple: saldo puede ser negativo).
- * - savings:  Cuenta de ahorros separada (puede ser sub-tipo de bank, pero la dejamos
- *             explícita para mostrarla distinta en la UI).
- * - other:    Cualquier otra cuenta no clasificable (préstamos, fondo común, etc.).
+ * - other:    Cualquier otra cuenta (préstamos, fondo común, etc.).
  */
-export const ACCOUNT_TYPES = [
-  'cash',
-  'bank',
-  'wallet',
-  'card',
-  'savings',
-  'other',
-] as const;
+export const ACCOUNT_TYPES = ['bank', 'savings', 'wallet', 'card', 'other'] as const;
 
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 

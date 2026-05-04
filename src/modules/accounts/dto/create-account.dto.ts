@@ -55,11 +55,19 @@ export class CreateAccountDto {
 
   @ApiPropertyOptional({
     example: 1500,
-    description: 'Saldo de apertura. Default 0.',
+    description: 'Saldo inicial en la cuenta bancaria/wallet. Default 0.',
   })
   @IsOptional()
   @IsNumber()
-  initialBalance?: number;
+  initialBankBalance?: number;
+
+  @ApiPropertyOptional({
+    example: 200,
+    description: 'Saldo inicial en efectivo (retirado de esta cuenta). Default 0.',
+  })
+  @IsOptional()
+  @IsNumber()
+  initialCashBalance?: number;
 
   @ApiPropertyOptional({
     example: true,

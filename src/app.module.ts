@@ -24,6 +24,8 @@ import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { ShoppingListsModule } from './modules/shopping-lists/shopping-lists.module';
 import { AccountsModule } from './modules/accounts/accounts.module';
 import { TransfersModule } from './modules/transfers/transfers.module';
+import { CashMovementsModule } from './modules/cash-movements/cash-movements.module';
+import { PresupuestosModule } from './modules/presupuestos/presupuestos.module';
 
 
 @Module({
@@ -67,6 +69,8 @@ import { TransfersModule } from './modules/transfers/transfers.module';
     ShoppingListsModule,
     AccountsModule,
     TransfersModule,
+    CashMovementsModule,
+    PresupuestosModule,
   ],
   controllers: [AppController],
   providers: [AppService],

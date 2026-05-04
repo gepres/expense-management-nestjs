@@ -106,7 +106,8 @@ export class AccountsService {
       throw new BadRequestException('El límite de crédito no puede ser negativo');
     }
 
-    const initialBalance = dto.initialBalance ?? 0;
+    const initialBankBalance = dto.initialBankBalance ?? 0;
+    const initialCashBalance = dto.initialCashBalance ?? 0;
     const isDefault = await this.resolveDefaultFlag(userId, dto.isDefault);
 
     const now = Timestamp.now();
@@ -115,8 +116,10 @@ export class AccountsService {
       name: dto.name.trim(),
       type: dto.type,
       currency: dto.currency.toUpperCase(),
-      initialBalance,
-      currentBalance: initialBalance,
+      initialBankBalance,
+      initialCashBalance,
+      bankBalance: initialBankBalance,
+      cashBalance: initialCashBalance,
       includeInTotal: dto.includeInTotal ?? true,
       isDefault,
       status: 'active',
@@ -259,28 +262,47 @@ export class AccountsService {
   // ==========================================================================
 
   /**
-   * Recalcula `currentBalance` de una cuenta sumando initialBalance + transfers in
-   * - transfers out - expenses asociados.
+   * Recalcula `bankBalance` y `cashBalance` desde 0 sumando movimientos:
+   *   bankBalance = initialBankBalance
+   *                 + transfers in (acreditadas en bank)
+   *                 - transfers out (debitadas de bank)
+   *                 - withdrawals (sale de bank)
+   *                 - expenses non-cash
+   *
+   *   cashBalance = initialCashBalance
+   *                 + withdrawals (entra a cash)
+   *                 - expenses cash (descuentan cash)
    *
    * Útil como "fix" cuando los datos quedan desincronizados.
+   *
+   * Nota: la lógica de "withdrawals" se concretará cuando refactoricemos el
+   * módulo de movimientos en Fase 5b. Por ahora `recalculate` solo considera
+   * expenses + transfers (consistente con el estado actual del proyecto).
    */
   async recalculateBalance(userId: string, id: string): Promise<Account> {
     const { ref, data } = await this.assertOwnership(userId, id);
 
     const firestore = this.firebaseService.getFirestore();
 
-    // Sumar gastos
+    // Sumar gastos asociados (separados por método de pago)
     const expensesSnap = await firestore
       .collection('expenses')
       .where('userId', '==', userId)
       .where('accountId', '==', id)
       .get();
-    const totalExpenses = expensesSnap.docs.reduce(
-      (sum, d) => sum + (d.data().monto || 0),
-      0,
-    );
+    let totalCashExpenses = 0;
+    let totalBankExpenses = 0;
+    expensesSnap.docs.forEach((d) => {
+      const exp = d.data();
+      const amount = Number(exp.monto || 0);
+      if (exp.metodoPago === 'efectivo') {
+        totalCashExpenses += amount;
+      } else {
+        totalBankExpenses += amount;
+      }
+    });
 
-    // Sumar transfers entrantes
+    // Sumar transfers entrantes (van a bankBalance)
     const transfersInSnap = await firestore
       .collection('transfers')
       .where('userId', '==', userId)
@@ -291,54 +313,39 @@ export class AccountsService {
       0,
     );
 
-    // Sumar transfers salientes
+    // Sumar transfers salientes (salen de bankBalance)
     const transfersOutSnap = await firestore
       .collection('transfers')
       .where('userId', '==', userId)
       .where('fromAccountId', '==', id)
       .get();
     const totalTransfersOut = transfersOutSnap.docs.reduce(
-      (sum, d) => sum + (d.data().amount || 0),
+      (sum, d) => sum + (d.data().amount || 0) + (d.data().fee || 0),
       0,
     );
 
-    const newBalance =
-      data.initialBalance + totalTransfersIn - totalTransfersOut - totalExpenses;
+    const newBankBalance =
+      data.initialBankBalance +
+      totalTransfersIn -
+      totalTransfersOut -
+      totalBankExpenses;
+    const newCashBalance = data.initialCashBalance - totalCashExpenses;
 
     await ref.update({
-      currentBalance: newBalance,
+      bankBalance: newBankBalance,
+      cashBalance: newCashBalance,
       updatedAt: Timestamp.now(),
     });
 
     this.logger.log(
-      `Balance recalculated for ${id}: ${data.currentBalance} → ${newBalance} ` +
-        `(expenses=${totalExpenses}, in=${totalTransfersIn}, out=${totalTransfersOut})`,
+      `Balance recalculated for ${id}: bank ${data.bankBalance} → ${newBankBalance}, cash ${data.cashBalance} → ${newCashBalance}`,
     );
 
     return this.toAccount(id, {
       ...data,
-      currentBalance: newBalance,
+      bankBalance: newBankBalance,
+      cashBalance: newCashBalance,
       updatedAt: Timestamp.now(),
-    });
-  }
-
-  /**
-   * Aplica un delta al saldo de una cuenta (positivo o negativo).
-   * Llamado por ExpensesService y TransfersService dentro de transactions.
-   *
-   * Versión SIMPLE (no transactional) para uso directo. Para uso transactional
-   * usar aplicarDeltaTx().
-   */
-  async aplicarDelta(accountId: string, delta: number): Promise<void> {
-    const ref = this.collection().doc(accountId);
-    await this.firebaseService.getFirestore().runTransaction(async (tx) => {
-      const snap = await tx.get(ref);
-      if (!snap.exists) throw new NotFoundException('Cuenta no encontrada');
-      const data = snap.data() as AccountDocument;
-      tx.update(ref, {
-        currentBalance: data.currentBalance + delta,
-        updatedAt: Timestamp.now(),
-      });
     });
   }
 }

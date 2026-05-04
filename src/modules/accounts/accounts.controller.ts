@@ -17,7 +17,6 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { AccountsService } from './accounts.service';
-import { AccountsMigrationService } from './migration.service';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -29,23 +28,7 @@ import type { FirebaseUser } from '../../common/interfaces/firebase-user.interfa
 @Controller('accounts')
 @UseGuards(FirebaseAuthGuard)
 export class AccountsController {
-  constructor(
-    private readonly accountsService: AccountsService,
-    private readonly migrationService: AccountsMigrationService,
-  ) {}
-
-  @Post('migrate')
-  @ApiOperation({
-    summary: 'Migrar usuario al modelo multi-cuenta (idempotente)',
-    description:
-      'Crea cuentas Efectivo PEN/USD desde presupuestosEfectivo y asigna accountId ' +
-      'a todos los expenses del usuario según su metodoPago + moneda. Idempotente: ' +
-      'ejecutar 2 veces no duplica nada.',
-  })
-  @ApiResponse({ status: 200, description: 'Migración completada o ya hecha' })
-  migrate(@CurrentUser() user: FirebaseUser) {
-    return this.migrationService.migrateUser(user.uid);
-  }
+  constructor(private readonly accountsService: AccountsService) {}
 
   @Post()
   @ApiOperation({ summary: 'Crear una cuenta nueva' })

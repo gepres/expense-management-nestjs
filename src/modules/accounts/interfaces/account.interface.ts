@@ -3,6 +3,17 @@ import { AccountStatus, AccountType } from '../constants/account-types.constants
 
 /**
  * Documento Firestore en la colección `accounts`.
+ *
+ * Saldos:
+ *   - bankBalance: dinero que está en la cuenta bancaria/wallet/tarjeta.
+ *   - cashBalance: dinero ya retirado (en efectivo) que vino de esta cuenta.
+ *   El saldo total disponible = bankBalance + cashBalance.
+ *
+ * Operaciones:
+ *   - Gasto con metodoPago != 'efectivo': descuenta de bankBalance.
+ *   - Gasto con metodoPago == 'efectivo': descuenta de cashBalance.
+ *   - Movimiento "retiro": mueve bankBalance → cashBalance dentro de la MISMA cuenta.
+ *   - Transfer entre cuentas: descuenta bankBalance origen, suma bankBalance destino.
  */
 export interface AccountDocument {
   userId: string;
@@ -12,8 +23,10 @@ export interface AccountDocument {
   currency: string;
   icon?: string;
   color?: string;
-  initialBalance: number;
-  currentBalance: number;
+  initialBankBalance: number;
+  initialCashBalance: number;
+  bankBalance: number;
+  cashBalance: number;
   includeInTotal: boolean;
   isDefault: boolean;
   status: AccountStatus;
