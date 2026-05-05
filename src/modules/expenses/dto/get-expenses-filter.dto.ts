@@ -1,6 +1,15 @@
-import { IsInt, IsString, IsIn, Min, Max, IsNotEmpty } from 'class-validator';
-import { Type } from 'class-transformer';
-import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsArray,
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class GetExpensesFilterDto {
   @ApiProperty({
@@ -34,4 +43,20 @@ export class GetExpensesFilterDto {
   @IsNotEmpty()
   @IsIn(['json', 'excel'])
   format: 'json' | 'excel';
+
+  @ApiPropertyOptional({
+    description:
+      'IDs de cuentas a incluir. Si se omite o está vacío, exporta TODAS. Para una sola cuenta se acepta string; para varias usar comma-separated o repetir el query param.',
+    example: 'acc1,acc2',
+    type: [String],
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') return value.split(',').filter(Boolean);
+    return undefined;
+  })
+  @IsArray()
+  @IsString({ each: true })
+  accountIds?: string[];
 }

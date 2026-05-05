@@ -72,9 +72,14 @@ export class ExpensesService {
     }
   }
 
-  async getExpensesByDateRange(userId: string, month: number, year: number) {
+  async getExpensesByDateRange(
+    userId: string,
+    month: number,
+    year: number,
+    accountIds?: string[],
+  ) {
     const firestore = this.firebaseService.getFirestore();
-    
+
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
@@ -83,71 +88,226 @@ export class ExpensesService {
 
     const expensesRef = firestore.collection('expenses');
 
-    const snapshot = await expensesRef
+    let query = expensesRef
       .where('userId', '==', userId)
       .where('fecha', '>=', startTimestamp)
-      .where('fecha', '<=', endTimestamp)
-      .orderBy('fecha', 'desc')
-      .get();
+      .where('fecha', '<=', endTimestamp);
 
-    return snapshot.docs.map(doc => {
+    // Si vienen ≤10 cuentas, usar `in` (límite de Firestore). Más de 10 →
+    // filtrar en memoria post-query.
+    let useInMemoryFilter = false;
+    if (accountIds && accountIds.length > 0) {
+      if (accountIds.length <= 10) {
+        query = query.where('accountId', 'in', accountIds);
+      } else {
+        useInMemoryFilter = true;
+      }
+    }
+
+    const snapshot = await query.orderBy('fecha', 'desc').get();
+    let docs = snapshot.docs.map((doc) => {
       const data = doc.data();
       return {
         id: doc.id,
         ...data,
         fecha: (data.fecha as Timestamp).toDate(),
         createdAt: (data.createdAt as Timestamp).toDate(),
-      };
+      } as Record<string, any>;
     });
+
+    if (useInMemoryFilter && accountIds) {
+      const set = new Set(accountIds);
+      docs = docs.filter((d) => set.has(d.accountId));
+    }
+
+    return docs;
+  }
+
+  /**
+   * Carga los nombres de las cuentas referenciadas por una lista de gastos.
+   * Devuelve un mapa `accountId → { name, currency }`. Cuentas archivadas o
+   * borradas siguen apareciendo en el reporte (con nombre original).
+   */
+  private async loadAccountsMap(
+    userId: string,
+    accountIds: string[],
+  ): Promise<Map<string, { name: string; currency: string; bank?: string }>> {
+    const map = new Map<string, { name: string; currency: string; bank?: string }>();
+    if (accountIds.length === 0) return map;
+
+    const firestore = this.firebaseService.getFirestore();
+    // Firestore `in` solo acepta hasta 10. Particionar en chunks.
+    const chunks: string[][] = [];
+    for (let i = 0; i < accountIds.length; i += 10) {
+      chunks.push(accountIds.slice(i, i + 10));
+    }
+
+    await Promise.all(
+      chunks.map(async (chunk) => {
+        const snap = await firestore
+          .collection('accounts')
+          .where('userId', '==', userId)
+          .where('__name__', 'in', chunk)
+          .get();
+        for (const doc of snap.docs) {
+          const data = doc.data() as AccountDocument;
+          map.set(doc.id, {
+            name: data.name,
+            currency: data.currency,
+            bank: data.bank,
+          });
+        }
+      }),
+    );
+
+    return map;
   }
 
   async exportExpenses(userId: string, filter: GetExpensesFilterDto) {
-    const expenses = await this.getExpensesByDateRange(userId, filter.month, filter.year);
+    const expenses = await this.getExpensesByDateRange(
+      userId,
+      filter.month,
+      filter.year,
+      filter.accountIds,
+    );
+
+    // Resolver nombres de cuenta UNA vez para usarlos en JSON y Excel.
+    const uniqueAccountIds = Array.from(
+      new Set(expenses.map((e) => e.accountId).filter(Boolean) as string[]),
+    );
+    const accountsMap = await this.loadAccountsMap(userId, uniqueAccountIds);
+
+    // Enriquecer cada gasto con el nombre de cuenta resuelto.
+    const enriched = expenses.map((e) => {
+      const acc = e.accountId ? accountsMap.get(e.accountId) : undefined;
+      return {
+        ...e,
+        accountName: acc?.name ?? '(cuenta eliminada)',
+        accountBank: acc?.bank ?? '',
+      };
+    });
 
     if (filter.format === 'json') {
-      return expenses;
+      return enriched;
     }
 
     if (filter.format === 'excel') {
-      return this.generateExcel(expenses);
+      return this.generateExcel(enriched);
     }
   }
 
   private async generateExcel(expenses: any[]): Promise<ExcelJS.Buffer> {
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Gastos');
 
-    worksheet.columns = [
+    // ==========================================================================
+    // Hoja 1: detalle de gastos
+    // ==========================================================================
+    const detailSheet = workbook.addWorksheet('Gastos');
+    detailSheet.columns = [
       { header: 'Fecha', key: 'fecha', width: 15 },
-      { header: 'Concepto', key: 'concepto', width: 30 },
-      { header: 'Categoría', key: 'categoria', width: 20 },
-      { header: 'Monto', key: 'monto', width: 15 },
-      { header: 'Moneda', key: 'moneda', width: 10 },
-      { header: 'Método de Pago', key: 'metodoPago', width: 20 },
-      { header: 'Comercio', key: 'comercio', width: 25 },
-      { header: 'Descripción', key: 'descripcion', width: 40 },
+      { header: 'Cuenta', key: 'accountName', width: 22 },
+      { header: 'Banco', key: 'accountBank', width: 14 },
+      { header: 'Categoría', key: 'categoria', width: 18 },
+      { header: 'Subcategoría', key: 'subcategoria', width: 18 },
+      { header: 'Descripción', key: 'descripcion', width: 35 },
+      { header: 'Monto', key: 'monto', width: 12 },
+      { header: 'Moneda', key: 'moneda', width: 8 },
+      { header: 'Método de Pago', key: 'metodoPago', width: 18 },
+      { header: 'Comercio', key: 'comercio', width: 22 },
     ];
 
-    // Estilo de cabecera
-    worksheet.getRow(1).font = { bold: true };
-    worksheet.getRow(1).fill = {
+    detailSheet.getRow(1).font = { bold: true };
+    detailSheet.getRow(1).fill = {
       type: 'pattern',
       pattern: 'solid',
       fgColor: { argb: 'FFCCCCCC' },
     };
 
-    expenses.forEach(expense => {
-      worksheet.addRow({
+    expenses.forEach((expense) => {
+      detailSheet.addRow({
         fecha: expense.fecha,
-        concepto: expense.concepto || 'Sin concepto',
+        accountName: expense.accountName,
+        accountBank: expense.accountBank,
         categoria: expense.categoria || 'Sin categoría',
+        subcategoria: expense.subcategoria || '',
+        descripcion: expense.descripcion || '',
         monto: expense.monto,
         moneda: expense.moneda || 'PEN',
         metodoPago: expense.metodoPago || 'Efectivo',
         comercio: expense.comercio || '',
-        descripcion: expense.descripcion || '',
       });
     });
+
+    // ==========================================================================
+    // Hoja 2: resumen por cuenta + moneda
+    // ==========================================================================
+    const summarySheet = workbook.addWorksheet('Resumen');
+    summarySheet.columns = [
+      { header: 'Cuenta', key: 'cuenta', width: 28 },
+      { header: 'Moneda', key: 'moneda', width: 10 },
+      { header: 'Nº gastos', key: 'count', width: 12 },
+      { header: 'Total', key: 'total', width: 14 },
+    ];
+    summarySheet.getRow(1).font = { bold: true };
+    summarySheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFCCCCCC' },
+    };
+
+    // Agrupar: (cuenta + moneda) → {count, total}
+    const groups = new Map<string, { cuenta: string; moneda: string; count: number; total: number }>();
+    for (const e of expenses) {
+      const key = `${e.accountName}__${e.moneda || 'PEN'}`;
+      const g = groups.get(key);
+      if (g) {
+        g.count += 1;
+        g.total += Number(e.monto || 0);
+      } else {
+        groups.set(key, {
+          cuenta: e.accountName,
+          moneda: e.moneda || 'PEN',
+          count: 1,
+          total: Number(e.monto || 0),
+        });
+      }
+    }
+    Array.from(groups.values())
+      .sort((a, b) => a.cuenta.localeCompare(b.cuenta))
+      .forEach((g) => summarySheet.addRow(g));
+
+    // ==========================================================================
+    // Hoja 3: resumen por moneda (totales globales)
+    // ==========================================================================
+    const currencySheet = workbook.addWorksheet('Por Moneda');
+    currencySheet.columns = [
+      { header: 'Moneda', key: 'moneda', width: 10 },
+      { header: 'Nº gastos', key: 'count', width: 12 },
+      { header: 'Total', key: 'total', width: 16 },
+    ];
+    currencySheet.getRow(1).font = { bold: true };
+    currencySheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFCCCCCC' },
+    };
+
+    const byCurrency = new Map<string, { count: number; total: number }>();
+    for (const e of expenses) {
+      const moneda = e.moneda || 'PEN';
+      const c = byCurrency.get(moneda);
+      if (c) {
+        c.count += 1;
+        c.total += Number(e.monto || 0);
+      } else {
+        byCurrency.set(moneda, { count: 1, total: Number(e.monto || 0) });
+      }
+    }
+    Array.from(byCurrency.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .forEach(([moneda, { count, total }]) =>
+        currencySheet.addRow({ moneda, count, total }),
+      );
 
     return await workbook.xlsx.writeBuffer();
   }
