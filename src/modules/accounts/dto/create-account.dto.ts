@@ -6,10 +6,13 @@ import {
   IsIn,
   MinLength,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ACCOUNT_TYPES } from '../constants/account-types.constants';
 import type { AccountType } from '../constants/account-types.constants';
+import { CardDataDto } from './card-data.dto';
 
 export class CreateAccountDto {
   @ApiProperty({ example: 'BCP Soles' })
@@ -93,4 +96,14 @@ export class CreateAccountDto {
   @IsOptional()
   @IsNumber()
   creditLimit?: number;
+
+  @ApiPropertyOptional({
+    type: CardDataDto,
+    description:
+      'Datos de tarjeta asociados (cifrados client-side). Aplica a type=card y bank/savings con tarjeta de débito. CVC NUNCA va aquí.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CardDataDto)
+  cardData?: CardDataDto;
 }
