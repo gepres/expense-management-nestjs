@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -26,6 +27,7 @@ import { AccountsModule } from './modules/accounts/accounts.module';
 import { TransfersModule } from './modules/transfers/transfers.module';
 import { CashMovementsModule } from './modules/cash-movements/cash-movements.module';
 import { PresupuestosModule } from './modules/presupuestos/presupuestos.module';
+import { ProgramadosModule } from './modules/programados/programados.module';
 
 
 @Module({
@@ -35,6 +37,7 @@ import { PresupuestosModule } from './modules/presupuestos/presupuestos.module';
       validate,
       load: [firebaseConfig, anthropicConfig, cloudinaryConfig],
     }),
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       {
         name: 'default',
@@ -71,6 +74,7 @@ import { PresupuestosModule } from './modules/presupuestos/presupuestos.module';
     TransfersModule,
     CashMovementsModule,
     PresupuestosModule,
+    ProgramadosModule,
   ],
   controllers: [AppController],
   providers: [AppService],
