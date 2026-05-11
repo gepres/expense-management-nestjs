@@ -64,6 +64,24 @@ export function calcularProximaEjecucion(
   let candidata: Date;
 
   switch (input.frecuencia) {
+    case 'diaria': {
+      const refStart = aplicarHoraEnZona(input.fechaInicio, hh, mm, tz);
+      if (input.ultimaEjecucion) {
+        candidata = aplicarHoraEnZona(
+          addDaysInZone(input.ultimaEjecucion, 1, tz),
+          hh,
+          mm,
+          tz,
+        );
+      } else {
+        candidata = refStart;
+        while (isBefore(candidata, ahoraUtc)) {
+          candidata = addDaysInZone(candidata, 1, tz);
+        }
+      }
+      break;
+    }
+
     case 'semanal': {
       const diaTarget = input.diaEjecucion ?? getDayInZone(input.fechaInicio, tz);
       candidata = siguienteDiaSemanaEnZona(partida, diaTarget, tz);

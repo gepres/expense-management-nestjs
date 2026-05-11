@@ -1,6 +1,7 @@
 import { Timestamp } from 'firebase-admin/firestore';
 
 export type FrecuenciaProgramado =
+  | 'diaria'
   | 'semanal'
   | 'quincenal'
   | 'mensual'
@@ -71,6 +72,61 @@ export interface GastoProgramado
 }
 
 /**
+ * Documento Firestore en `transferenciasProgramadas`.
+ * Cada disparo genera un documento en `transfers` con la misma forma
+ * que una transferencia creada manualmente.
+ */
+export interface TransferenciaProgramadaDocument {
+  userId: string;
+
+  cuentaOrigenId: string;
+  cuentaDestinoId: string;
+  monto: number;
+  moneda: string;
+  descripcion?: string;
+
+  // Schedule (idéntico a GastoProgramadoDocument)
+  frecuencia: FrecuenciaProgramado;
+  diaEjecucion?: number;
+  ultimoDiaDelMes?: boolean;
+  intervaloDias?: number;
+  fechaUnica?: Timestamp;
+  hora: string;
+  zonaHoraria: string;
+  fechaInicio: Timestamp;
+  fechaFin?: Timestamp;
+
+  activo: boolean;
+  proximaEjecucion: Timestamp;
+  ultimaEjecucion?: Timestamp;
+  totalEjecuciones: number;
+
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface TransferenciaProgramada
+  extends Omit<
+    TransferenciaProgramadaDocument,
+    | 'fechaInicio'
+    | 'fechaFin'
+    | 'fechaUnica'
+    | 'proximaEjecucion'
+    | 'ultimaEjecucion'
+    | 'createdAt'
+    | 'updatedAt'
+  > {
+  id: string;
+  fechaInicio: string;
+  fechaFin?: string;
+  fechaUnica?: string;
+  proximaEjecucion: string;
+  ultimaEjecucion?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
  * Documento Firestore en `ejecucionesProgramadas`. Auditoría de cada disparo
  * del cron, con ID determinístico `{programadaId}_{fechaProgramadaISO}` para
  * garantizar idempotencia ante reentradas.
@@ -83,5 +139,6 @@ export interface EjecucionDocument {
   fechaEjecutada: Timestamp;
   estado: EstadoEjecucion;
   gastoCreadoId?: string;
+  transferCreadoId?: string;
   errorMensaje?: string;
 }

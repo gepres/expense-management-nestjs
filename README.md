@@ -12,6 +12,7 @@ Backend completo que proporciona:
 - Escaneo de comprobantes con OCR/Vision
 - Importación desde Excel
 - Análisis financiero con IA
+- **Programados (recurrentes)**: gastos y transferencias automáticas con cron y zona horaria del usuario
 
 ## Tecnologías
 
@@ -23,6 +24,8 @@ Backend completo que proporciona:
 - **Class-validator** - Validación de DTOs
 - **Sharp** - Procesamiento de imágenes
 - **ExcelJS** - Importación de Excel
+- **@nestjs/schedule** - Cron jobs (procesador de gastos/transferencias programadas)
+- **date-fns + date-fns-tz** - Cálculo de próximas ejecuciones con zona horaria del usuario
 
 ## Requisitos Previos
 
@@ -157,7 +160,12 @@ src/
 │   ├── chat/                 # Conversaciones con IA
 │   ├── expenses/             # CRUD de gastos
 │   ├── receipts/             # Escaneo de comprobantes
-│   └── import/               # Importación desde Excel
+│   ├── import/               # Importación desde Excel
+│   ├── accounts/             # Multi-cuenta
+│   ├── transfers/            # Transferencias entre cuentas
+│   ├── cash-movements/       # Retiros / depósitos / income
+│   ├── presupuestos/         # Sub-reservas por categoría
+│   └── programados/          # ⏰ Gastos y transferencias recurrentes (cron)
 ├── app.module.ts             # Módulo principal
 └── main.ts                   # Bootstrap de la aplicación
 ```
@@ -296,6 +304,16 @@ onIdTokenChanged(auth, async (user) => {
 - 8 categorías predeterminadas
 - Creación de categorías personalizadas
 - Validación de eliminación (sin gastos asociados)
+
+### 6. Programados (recurrentes)
+- **Gastos programados**: plantillas que generan un `expense` automáticamente (alquiler, suscripciones, etc.)
+- **Transferencias programadas**: mueven dinero entre cuentas del usuario (mismo currency)
+- **Frecuencias**: diaria, semanal, quincenal (cada 15 días), mensual (día específico u "último día"), personalizada (cada N días), única
+- **Cron** cada 30 min con `@nestjs/schedule`. Idempotente vía lock determinístico en `ejecucionesProgramadas/{programadaId}_{fechaISO}`
+- **Timezone-aware**: cálculo en hora local del usuario con `date-fns-tz`, almacenamiento en UTC
+- **Manejo de saldo insuficiente**: marca la ejecución pero **avanza próxima** (no se atasca)
+- **Reglas Firestore**: write bloqueado al cliente — solo el backend (Admin SDK) escribe
+- Endpoints: `/api/programados/gastos`, `/api/programados/transferencias` (CRUD + pause/resume)
 
 ## Seguridad
 

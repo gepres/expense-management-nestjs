@@ -16,16 +16,20 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Timestamp } from 'firebase-admin/firestore';
 import { FirebaseService } from '../firebase/firebase.service';
 import { ProgramadosService } from './programados.service';
+import { TransferenciasProgramadasService } from './transferencias-programadas.service';
 import { calcularProximaEjecucion } from './utils/calcular-proxima';
 import {
   EjecucionDocument,
   GastoProgramadoDocument,
+  TransferenciaProgramadaDocument,
 } from './interfaces/programado.interface';
 import { AccountDocument } from '../accounts/interfaces/account.interface';
 
 const PROGRAMADOS_COLLECTION = 'gastosProgramados';
+const TRANSFERENCIAS_COLLECTION = 'transferenciasProgramadas';
 const EJECUCIONES_COLLECTION = 'ejecucionesProgramadas';
 const EXPENSES_COLLECTION = 'expenses';
+const TRANSFERS_COLLECTION = 'transfers';
 const ACCOUNTS_COLLECTION = 'accounts';
 
 function targetBalanceField(metodoPago: string | undefined): 'bankBalance' | 'cashBalance' {
@@ -39,36 +43,60 @@ export class ProgramadosCron {
   constructor(
     private readonly firebaseService: FirebaseService,
     private readonly programadosService: ProgramadosService,
+    private readonly transferenciasService: TransferenciasProgramadasService,
   ) {}
 
   /**
-   * Corre cada 15 minutos. La precisión de "hora exacta" es ±15 min, suficiente
-   * para gastos programados (no para alertas en tiempo real).
+   * Corre cada 30 minutos. Procesa gastos y transferencias programadas en
+   * el mismo ciclo.
    */
   @Cron(CronExpression.EVERY_30_MINUTES)
   async procesarPendientes(): Promise<void> {
     const ahora = new Date();
-    let pendientes;
+
+    // Gastos
     try {
-      pendientes = await this.programadosService.findPendientes(ahora);
+      const gastos = await this.programadosService.findPendientes(ahora);
+      if (gastos.length > 0) {
+        this.logger.log(`Procesando ${gastos.length} gastos programados`);
+        for (const p of gastos) {
+          try {
+            await this.ejecutarUno(p.id, p.data, ahora);
+          } catch (err) {
+            this.logger.error(
+              `Falló ejecución de gasto programado ${p.id}`,
+              err instanceof Error ? err.stack : String(err),
+            );
+          }
+        }
+      }
     } catch (err) {
-      this.logger.error('Error consultando pendientes', err as Error);
-      return;
+      this.logger.error('Error consultando gastos pendientes', err as Error);
     }
 
-    if (pendientes.length === 0) return;
-
-    this.logger.log(`Procesando ${pendientes.length} programados pendientes`);
-
-    for (const p of pendientes) {
-      try {
-        await this.ejecutarUno(p.id, p.data, ahora);
-      } catch (err) {
-        this.logger.error(
-          `Falló ejecución de programado ${p.id}`,
-          err instanceof Error ? err.stack : String(err),
+    // Transferencias
+    try {
+      const transferencias = await this.transferenciasService.findPendientes(ahora);
+      if (transferencias.length > 0) {
+        this.logger.log(
+          `Procesando ${transferencias.length} transferencias programadas`,
         );
+        for (const t of transferencias) {
+          try {
+            await this.ejecutarTransferencia(t.id, t.data, ahora);
+          } catch (err) {
+            this.logger.error(
+              `Falló ejecución de transferencia programada ${t.id}`,
+              err instanceof Error ? err.stack : String(err),
+            );
+          }
+        }
       }
+    } catch (err) {
+      this.logger.error(
+        'Error consultando transferencias pendientes',
+        err as Error,
+      );
     }
   }
 
@@ -240,6 +268,204 @@ export class ProgramadosCron {
           errorMensaje,
         });
       } catch (e) {
+        this.logger.warn(`No se pudo marcar ejecución ${lockId} como fallida`);
+      }
+    }
+  }
+
+  /**
+   * Ejecuta una transferencia programada: lock + transacción Firestore
+   * (debit origen, credit destino, crear documento en `transfers`).
+   *
+   * Diferencias con `ejecutarUno` (gastos):
+   *  - Si la cuenta destino fue eliminada → marca fallida y PAUSA el programado
+   *    (a diferencia de saldo insuficiente que reintenta).
+   *  - Solo mismo currency: la validación se hizo al crear; aquí asumimos OK.
+   */
+  private async ejecutarTransferencia(
+    programadaId: string,
+    data: TransferenciaProgramadaDocument,
+    ahora: Date,
+  ): Promise<void> {
+    const firestore = this.firebaseService.getFirestore();
+    const fechaProgramada = data.proximaEjecucion.toDate();
+    const lockId = `${programadaId}_${fechaProgramada.toISOString()}`;
+    const ejecucionRef = firestore.collection(EJECUCIONES_COLLECTION).doc(lockId);
+
+    // ---- Lock idempotente -------------------------------------------------
+    try {
+      await ejecucionRef.create({
+        programadaId,
+        userId: data.userId,
+        tipo: 'transferencia',
+        fechaProgramada: data.proximaEjecucion,
+        fechaEjecutada: Timestamp.fromDate(ahora),
+        estado: 'pending',
+      } satisfies EjecucionDocument);
+    } catch (err: any) {
+      if (err?.code === 6 /* ALREADY_EXISTS */) return;
+      throw err;
+    }
+
+    const programadoRef = firestore.collection(TRANSFERENCIAS_COLLECTION).doc(programadaId);
+    const fromRef = firestore.collection(ACCOUNTS_COLLECTION).doc(data.cuentaOrigenId);
+    const toRef = firestore.collection(ACCOUNTS_COLLECTION).doc(data.cuentaDestinoId);
+    const transferRef = firestore.collection(TRANSFERS_COLLECTION).doc();
+
+    try {
+      await firestore.runTransaction(async (tx) => {
+        const [fromSnap, toSnap, programadoSnap] = await Promise.all([
+          tx.get(fromRef),
+          tx.get(toRef),
+          tx.get(programadoRef),
+        ]);
+
+        if (!programadoSnap.exists) {
+          throw new Error('Transferencia programada eliminada durante ejecución');
+        }
+        const fresco = programadoSnap.data() as TransferenciaProgramadaDocument;
+        if (!fresco.activo) throw new Error('Transferencia fue pausada');
+
+        // Cuenta destino borrada → pausar (no podemos completar la transferencia)
+        if (!toSnap.exists) {
+          tx.update(ejecucionRef, {
+            estado: 'fallida',
+            errorMensaje: 'Cuenta destino fue eliminada',
+          });
+          tx.update(programadoRef, {
+            activo: false,
+            updatedAt: Timestamp.now(),
+          });
+          return;
+        }
+
+        if (!fromSnap.exists) {
+          tx.update(ejecucionRef, {
+            estado: 'fallida',
+            errorMensaje: 'Cuenta origen fue eliminada',
+          });
+          tx.update(programadoRef, {
+            activo: false,
+            updatedAt: Timestamp.now(),
+          });
+          return;
+        }
+
+        const from = fromSnap.data() as AccountDocument;
+        const to = toSnap.data() as AccountDocument;
+
+        if (from.userId !== data.userId || to.userId !== data.userId) {
+          throw new Error('Cuenta de otro usuario');
+        }
+
+        // Saldo insuficiente en bankBalance del origen → registrar y avanzar.
+        if (from.bankBalance < data.monto) {
+          tx.update(ejecucionRef, {
+            estado: 'saldo_insuficiente',
+            errorMensaje: `Saldo insuficiente: ${from.bankBalance} < ${data.monto}`,
+          });
+          const proxima = calcularProximaEjecucion({
+            frecuencia: data.frecuencia,
+            hora: data.hora,
+            zonaHoraria: data.zonaHoraria,
+            fechaInicio: data.fechaInicio.toDate(),
+            fechaFin: data.fechaFin?.toDate(),
+            ultimaEjecucion: fechaProgramada,
+            diaEjecucion: data.diaEjecucion,
+            ultimoDiaDelMes: data.ultimoDiaDelMes,
+            intervaloDias: data.intervaloDias,
+            fechaUnica: data.fechaUnica?.toDate(),
+          });
+          if (proxima) {
+            tx.update(programadoRef, {
+              proximaEjecucion: Timestamp.fromDate(proxima),
+              updatedAt: Timestamp.now(),
+            });
+          } else {
+            tx.update(programadoRef, {
+              activo: false,
+              updatedAt: Timestamp.now(),
+            });
+          }
+          return;
+        }
+
+        const now = Timestamp.now();
+
+        // Crear documento Transfer (misma forma que TransfersService.create)
+        const transferDoc: Record<string, any> = {
+          userId: data.userId,
+          fromAccountId: data.cuentaOrigenId,
+          toAccountId: data.cuentaDestinoId,
+          amount: data.monto,
+          amountConverted: data.monto, // mismo currency
+          exchangeRate: 1,
+          fromCurrency: from.currency,
+          toCurrency: to.currency,
+          date: data.proximaEjecucion,
+          createdAt: now,
+          updatedAt: now,
+          // Marca para identificar transfers generadas por programación
+          programadaId,
+        };
+        if (data.descripcion) transferDoc.description = data.descripcion;
+
+        tx.set(transferRef, transferDoc);
+        tx.update(fromRef, {
+          bankBalance: from.bankBalance - data.monto,
+          updatedAt: now,
+        });
+        tx.update(toRef, {
+          bankBalance: to.bankBalance + data.monto,
+          updatedAt: now,
+        });
+
+        // Recalcular próxima
+        const proxima = calcularProximaEjecucion({
+          frecuencia: data.frecuencia,
+          hora: data.hora,
+          zonaHoraria: data.zonaHoraria,
+          fechaInicio: data.fechaInicio.toDate(),
+          fechaFin: data.fechaFin?.toDate(),
+          ultimaEjecucion: fechaProgramada,
+          diaEjecucion: data.diaEjecucion,
+          ultimoDiaDelMes: data.ultimoDiaDelMes,
+          intervaloDias: data.intervaloDias,
+          fechaUnica: data.fechaUnica?.toDate(),
+        });
+
+        const programadoUpdate: Record<string, any> = {
+          ultimaEjecucion: data.proximaEjecucion,
+          totalEjecuciones: (fresco.totalEjecuciones ?? 0) + 1,
+          updatedAt: now,
+        };
+        if (proxima) {
+          programadoUpdate.proximaEjecucion = Timestamp.fromDate(proxima);
+        } else {
+          programadoUpdate.activo = false;
+        }
+        tx.update(programadoRef, programadoUpdate);
+
+        tx.update(ejecucionRef, {
+          estado: 'exitosa',
+          transferCreadoId: transferRef.id,
+        });
+      });
+
+      this.logger.log(
+        `Ejecutada transferencia programada ${programadaId} → transfer ${transferRef.id}`,
+      );
+    } catch (err) {
+      const errorMensaje = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `Tx fallida en transferencia ${programadaId}: ${errorMensaje}`,
+      );
+      try {
+        await ejecucionRef.update({
+          estado: 'fallida',
+          errorMensaje,
+        });
+      } catch {
         this.logger.warn(`No se pudo marcar ejecución ${lockId} como fallida`);
       }
     }

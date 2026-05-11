@@ -12,6 +12,44 @@ function limaToUtc(y: number, m: number, d: number, h = 0, min = 0): Date {
 }
 
 describe('calcularProximaEjecucion (backend, TZ-aware)', () => {
+  describe('frecuencia diaria', () => {
+    it('si la hora aún no pasó, primera ejecución hoy', () => {
+      const ahora = limaToUtc(2026, 5, 10, 8, 0);
+      const res = calcularProximaEjecucion({
+        frecuencia: 'diaria',
+        hora: '12:00',
+        zonaHoraria: TZ,
+        fechaInicio: ahora,
+        ahora,
+      });
+      expect(res!.toISOString()).toBe('2026-05-10T17:00:00.000Z');
+    });
+
+    it('si la hora ya pasó, salta a mañana', () => {
+      const ahora = limaToUtc(2026, 5, 10, 13, 0);
+      const res = calcularProximaEjecucion({
+        frecuencia: 'diaria',
+        hora: '12:00',
+        zonaHoraria: TZ,
+        fechaInicio: limaToUtc(2026, 5, 10, 8, 0),
+        ahora,
+      });
+      expect(res!.toISOString()).toBe('2026-05-11T17:00:00.000Z');
+    });
+
+    it('después de ejecutar suma 1 día', () => {
+      const res = calcularProximaEjecucion({
+        frecuencia: 'diaria',
+        hora: '12:00',
+        zonaHoraria: TZ,
+        fechaInicio: limaToUtc(2026, 5, 10),
+        ultimaEjecucion: limaToUtc(2026, 5, 10, 12, 0),
+        ahora: limaToUtc(2026, 5, 11, 0, 0),
+      });
+      expect(res!.toISOString()).toBe('2026-05-11T17:00:00.000Z');
+    });
+  });
+
   describe('frecuencia única', () => {
     it('devuelve la fecha única si está en el futuro', () => {
       const ahora = limaToUtc(2026, 5, 10, 8, 0);

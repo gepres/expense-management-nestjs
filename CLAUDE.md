@@ -53,6 +53,11 @@ All endpoints (except `/api/health`) require Firebase ID Token authentication vi
 | `import` | Bulk Excel/JSON import with validation & AI suggestions |
 | `payment-methods` | Payment method management |
 | `currencies` | Currency management |
+| `accounts` | Multi-account (bank, savings, wallet, card) with bank/cash sub-balances |
+| `transfers` | Atomic inter-account transfers with currency conversion |
+| `cash-movements` | Income / withdraw / deposit / revert (atomic) |
+| `presupuestos` | Optional sub-reservations per category |
+| `programados` | **Recurring scheduled expenses & transfers**. Cron-driven. See section below. |
 
 ### Database Structure (Firestore)
 
@@ -60,12 +65,25 @@ All endpoints (except `/api/health`) require Firebase ID Token authentication vi
 users/{userId}/
   ├── profile/                    # User data
   ├── categories/                 # Custom categories with subcategories
+  ├── paymentMethods/             # Custom payment methods
+  ├── currencies/                 # Custom currencies
+  ├── shortcuts/                  # Quick expense shortcuts
   ├── conversations/{conversationId}/
   │   └── messages/              # Chat history
   └── imports/                    # Import audit trail
 
-gastos/                           # Centralized expenses (filtered by userId)
+# Top-level collections (filtered by userId field)
+expenses/                         # User expenses
+accounts/                         # Multi-account
+transfers/                        # Atomic inter-account transfers
+cash-movements/                   # Income / withdraw / deposit / revert
+presupuestos/                     # Sub-reservations per category
+gastosProgramados/                # Recurring expense templates (write-blocked from client)
+transferenciasProgramadas/        # Recurring transfer templates (write-blocked from client)
+ejecucionesProgramadas/           # Cron audit log (idempotency lock; write-blocked from client)
 receipts/                         # Receipt documents
+shopping-lists/                   # Shopping lists
+shared_groups/                    # Shared expense groups
 ```
 
 ## Critical Development Patterns
@@ -183,26 +201,51 @@ npx jest src/modules/expenses/expenses.service.spec.ts
 npx jest --testNamePattern="should create expense"
 ```
 
+## Programados Module (cron-driven recurring operations)
+
+The `programados` module owns 2 collections (`gastosProgramados`, `transferenciasProgramadas`) and an audit collection (`ejecucionesProgramadas`).
+
+### Critical patterns
+
+- **Cron** runs every 30 min via `@nestjs/schedule` (`ProgramadosCron.procesarPendientes`). Processes both expense and transfer schedules in the same cycle.
+- **Idempotency**: deterministic lock ID `{programadaId}_{fechaProgramadaISO}` in `ejecucionesProgramadas`. The lock is created with `.create()` (fails if exists with code `6`/`ALREADY_EXISTS`) BEFORE any side-effects. Safe under multi-worker / restarts.
+- **Atomic execution**: each disparo runs inside `firestore.runTransaction(...)`:
+  - Validates account ownership and existence (re-reads inside tx).
+  - Re-reads the schedule to detect mid-run pause/delete.
+  - Decrements balance from correct field (`bankBalance` or `cashBalance` for `metodoPago === 'efectivo'`).
+  - Creates the `expense`/`transfer` document with `programadaId` marker.
+  - Recalculates and writes `proximaEjecucion` (or sets `activo: false` if no more disparos).
+  - Marks the lock as `exitosa`/`fallida`/`saldo_insuficiente`.
+- **Insufficient balance**: marks execution `saldo_insuficiente` but ADVANCES `proximaEjecucion` so the schedule doesn't get stuck. User is responsible for adding funds.
+- **Deleted account** (transfers only): marks `fallida` and PAUSES the schedule (different from insufficient balance which retries).
+- **TZ-aware calculation** (`utils/calcular-proxima.ts`): uses `date-fns-tz` to respect user's `zonaHoraria` (IANA, e.g. `America/Lima`). The "day 5 at 12:00" semantics is in local time; storage in UTC.
+
+### Endpoint pattern
+
+```
+/api/programados/gastos              → ProgramadosController + ProgramadosService
+/api/programados/transferencias      → TransferenciasProgramadasController + TransferenciasProgramadasService
+```
+
+Both expose: `GET /`, `POST /`, `GET /:id`, `PATCH /:id`, `DELETE /:id`, `POST /:id/pause`, `POST /:id/resume`. Update endpoint recalculates `proximaEjecucion` if any schedule field changes.
+
+### When modifying
+
+- **NEVER** remove the lock-create-before-tx pattern — that's what guarantees idempotency.
+- **NEVER** allow client writes to these collections (Firestore rules enforce this).
+- If adding new frequency: update `FrecuenciaProgramado` enum AND add a case in `calcularProximaEjecucion` AND a test in `calcular-proxima.spec.ts`.
+- If adding cross-currency transfers: validate exchange rate at create time, store `amountConverted` and `exchangeRate` in the schedule itself (don't compute at execution time — rates change).
+
 ## Firestore Security Rules
 
-Must be configured in Firebase Console:
+The authoritative rules live in the **frontend repo** (`gastos/firestore.rules`) and are deployed with `firebase deploy --only firestore:rules`. Highlights relevant to this backend:
 
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    match /gastos/{document=**} {
-      allow read, write: if request.auth != null;
-    }
-    match /receipts/{document=**} {
-      allow read, write: if request.auth != null;
-    }
-  }
-}
-```
+- **Top-level collections** (`expenses`, `accounts`, `transfers`, `cash-movements`, `presupuestos`, `shopping-lists`, `receipts`): client can read/write its own data (`resource.data.userId == request.auth.uid`). Some collections are immutable from client (`transfers`, `cash-movements`).
+- **Programados collections** (`gastosProgramados`, `transferenciasProgramadas`, `ejecucionesProgramadas`): client can only **read**. Writes are blocked at the rules level — only this backend (Admin SDK bypasses rules) can mutate them. This is non-negotiable: it prevents clients from manipulating `proximaEjecucion` to force immediate execution or skip validations.
+- **Composite indexes** are also versioned in `gastos/firestore.indexes.json`. New indexes for programados:
+  - `gastosProgramados`: `activo+proximaEjecucion`, `userId+proximaEjecucion`
+  - `transferenciasProgramadas`: same two
+- Whenever you add a query with `where` + `where`/`orderBy` on a new field, add the index to that file and `firebase deploy --only firestore:indexes`.
 
 ## Common Imports
 
