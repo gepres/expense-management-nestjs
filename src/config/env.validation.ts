@@ -98,6 +98,12 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   LOG_LEVEL: string = 'debug';
+
+  // Cron trigger (usado por scheduler externo, p. ej. GitHub Actions, en
+  // entornos serverless donde @nestjs/schedule no corre. En local es opcional.)
+  @IsString()
+  @IsOptional()
+  CRON_SECRET?: string;
 }
 
 export function validate(config: Record<string, unknown>) {
