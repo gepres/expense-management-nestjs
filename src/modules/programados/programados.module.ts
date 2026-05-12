@@ -5,8 +5,11 @@ import { ProgramadosService } from './programados.service';
 import { ProgramadosCron } from './programados.cron';
 import { TransferenciasProgramadasController } from './transferencias-programadas.controller';
 import { TransferenciasProgramadasService } from './transferencias-programadas.service';
+import { NotificacionesModule } from '../notificaciones/notificaciones.module';
+import { FxService } from './utils/fx.service';
 
 @Module({
+  imports: [NotificacionesModule],
   controllers: [
     ProgramadosController,
     ProgramadosCronController,
@@ -16,6 +19,7 @@ import { TransferenciasProgramadasService } from './transferencias-programadas.s
     ProgramadosService,
     TransferenciasProgramadasService,
     ProgramadosCron,
+    FxService,
   ],
   exports: [ProgramadosService, TransferenciasProgramadasService],
 })

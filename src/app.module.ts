@@ -28,6 +28,7 @@ import { TransfersModule } from './modules/transfers/transfers.module';
 import { CashMovementsModule } from './modules/cash-movements/cash-movements.module';
 import { PresupuestosModule } from './modules/presupuestos/presupuestos.module';
 import { ProgramadosModule } from './modules/programados/programados.module';
+import { NotificacionesModule } from './modules/notificaciones/notificaciones.module';
 
 
 @Module({
@@ -75,6 +76,7 @@ import { ProgramadosModule } from './modules/programados/programados.module';
     CashMovementsModule,
     PresupuestosModule,
     ProgramadosModule,
+    NotificacionesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

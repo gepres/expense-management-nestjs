@@ -39,10 +39,44 @@ export class CreateTransferenciaProgramadaDto {
   @Min(0.01)
   monto: number;
 
-  @ApiProperty({ example: 'PEN', enum: ['PEN', 'USD'] })
+  @ApiProperty({
+    example: 'PEN',
+    enum: ['PEN', 'USD'],
+    description: 'Moneda de la cuenta origen.',
+  })
   @IsString()
   @IsIn(['PEN', 'USD'])
   moneda: string;
+
+  @ApiPropertyOptional({
+    example: 'USD',
+    enum: ['PEN', 'USD'],
+    description:
+      'Moneda de la cuenta destino. Si difiere de `moneda`, requiere `exchangeRate` o `usarTasaActual: true` (cross-currency).',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['PEN', 'USD'])
+  monedaDestino?: string;
+
+  @ApiPropertyOptional({
+    example: 3.75,
+    description:
+      'Tipo de cambio fijo aplicado en cada ejecución (monto × exchangeRate = amountConverted). Requerido cuando `monedaDestino !== moneda` y `usarTasaActual` no es true.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0.000001)
+  exchangeRate?: number;
+
+  @ApiPropertyOptional({
+    example: false,
+    description:
+      'Si true, el cron consulta una API externa (Frankfurter) al ejecutar e ignora `exchangeRate`. Si la API falla → ejecución marcada como fallida.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  usarTasaActual?: boolean;
 
   @ApiPropertyOptional({ example: 'Apartar para emergencias' })
   @IsOptional()

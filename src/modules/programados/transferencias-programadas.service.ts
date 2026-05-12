@@ -10,6 +10,8 @@ import { FirebaseService } from '../firebase/firebase.service';
 import { CreateTransferenciaProgramadaDto } from './dto/create-transferencia-programada.dto';
 import { UpdateTransferenciaProgramadaDto } from './dto/update-transferencia-programada.dto';
 import {
+  Ejecucion,
+  EjecucionDocument,
   TransferenciaProgramada,
   TransferenciaProgramadaDocument,
 } from './interfaces/programado.interface';
@@ -18,6 +20,7 @@ import { AccountDocument } from '../accounts/interfaces/account.interface';
 
 const COLLECTION = 'transferenciasProgramadas';
 const ACCOUNTS = 'accounts';
+const EJECUCIONES = 'ejecucionesProgramadas';
 
 @Injectable()
 export class TransferenciasProgramadasService {
@@ -149,10 +152,22 @@ export class TransferenciasProgramadasService {
         `La moneda (${dto.moneda}) no coincide con la cuenta origen (${origen.currency})`,
       );
     }
-    if (destino.currency !== dto.moneda) {
+
+    // Cross-currency: si monedaDestino se provee y difiere de moneda, validar
+    // que coincida con la cuenta destino y exigir exchangeRate (o usarTasaActual).
+    const monedaDestino = dto.monedaDestino ?? dto.moneda;
+    if (destino.currency !== monedaDestino) {
       throw new BadRequestException(
-        'Las cuentas origen y destino deben tener la misma moneda',
+        `La monedaDestino (${monedaDestino}) no coincide con la cuenta destino (${destino.currency})`,
       );
+    }
+    const esCrossCurrency = monedaDestino !== dto.moneda;
+    if (esCrossCurrency) {
+      if (!dto.usarTasaActual && (dto.exchangeRate === undefined || dto.exchangeRate <= 0)) {
+        throw new BadRequestException(
+          'Para transferencias entre monedas distintas, indica `exchangeRate` (> 0) o `usarTasaActual: true`',
+        );
+      }
     }
 
     const fechaInicio = new Date(dto.fechaInicio);
@@ -200,6 +215,9 @@ export class TransferenciasProgramadasService {
     if (dto.intervaloDias !== undefined) doc.intervaloDias = dto.intervaloDias;
     if (fechaUnica) doc.fechaUnica = Timestamp.fromDate(fechaUnica);
     if (fechaFin) doc.fechaFin = Timestamp.fromDate(fechaFin);
+    if (esCrossCurrency) doc.monedaDestino = monedaDestino;
+    if (dto.exchangeRate !== undefined) doc.exchangeRate = dto.exchangeRate;
+    if (dto.usarTasaActual !== undefined) doc.usarTasaActual = dto.usarTasaActual;
 
     const ref = this.firebaseService
       .getFirestore()
@@ -299,13 +317,16 @@ export class TransferenciasProgramadasService {
     });
 
     // Validar cuentas si cambian
+    const moneda = dto.moneda ?? before.moneda;
+    const monedaDestino =
+      dto.monedaDestino ?? before.monedaDestino ?? moneda;
+
     if (dto.cuentaOrigenId) {
       const origen = await this.verificarCuenta(
         userId,
         dto.cuentaOrigenId,
         'origen',
       );
-      const moneda = dto.moneda ?? before.moneda;
       if (origen.currency !== moneda) {
         throw new BadRequestException(
           `La moneda (${moneda}) no coincide con la cuenta origen (${origen.currency})`,
@@ -318,10 +339,21 @@ export class TransferenciasProgramadasService {
         dto.cuentaDestinoId,
         'destino',
       );
-      const moneda = dto.moneda ?? before.moneda;
-      if (destino.currency !== moneda) {
+      if (destino.currency !== monedaDestino) {
         throw new BadRequestException(
-          'Las cuentas origen y destino deben tener la misma moneda',
+          `La monedaDestino (${monedaDestino}) no coincide con la cuenta destino (${destino.currency})`,
+        );
+      }
+    }
+
+    // Validar configuración cross-currency tras el merge
+    const esCrossCurrency = monedaDestino !== moneda;
+    if (esCrossCurrency) {
+      const exchangeRate = dto.exchangeRate ?? before.exchangeRate;
+      const usarTasaActual = dto.usarTasaActual ?? before.usarTasaActual;
+      if (!usarTasaActual && (exchangeRate === undefined || exchangeRate <= 0)) {
+        throw new BadRequestException(
+          'Para transferencias entre monedas distintas, indica `exchangeRate` (> 0) o `usarTasaActual: true`',
         );
       }
     }
@@ -345,6 +377,9 @@ export class TransferenciasProgramadasService {
     set('cuentaDestinoId', dto.cuentaDestinoId);
     set('monto', dto.monto);
     set('moneda', dto.moneda);
+    set('monedaDestino', dto.monedaDestino);
+    set('exchangeRate', dto.exchangeRate);
+    set('usarTasaActual', dto.usarTasaActual);
     set('descripcion', dto.descripcion?.trim());
     set('frecuencia', dto.frecuencia);
     set('diaEjecucion', dto.diaEjecucion);
@@ -402,6 +437,44 @@ export class TransferenciasProgramadasService {
     id: string,
   ): Promise<TransferenciaProgramada> {
     return this.update(userId, id, { activo: true });
+  }
+
+  // ==========================================================================
+  // AUDITORÍA — historial de ejecuciones de una transferencia programada
+  // ==========================================================================
+
+  async findEjecuciones(
+    userId: string,
+    programadaId: string,
+    limit = 100,
+  ): Promise<Ejecucion[]> {
+    const ref = this.firebaseService
+      .getFirestore()
+      .collection(COLLECTION)
+      .doc(programadaId);
+    const snap = await ref.get();
+    if (!snap.exists) throw new NotFoundException('Programación no encontrada');
+    const data = snap.data() as TransferenciaProgramadaDocument;
+    if (data.userId !== userId) throw new ForbiddenException('Acceso denegado');
+
+    const ejecucionesSnap = await this.firebaseService
+      .getFirestore()
+      .collection(EJECUCIONES)
+      .where('programadaId', '==', programadaId)
+      .where('userId', '==', userId)
+      .orderBy('fechaEjecutada', 'desc')
+      .limit(limit)
+      .get();
+
+    return ejecucionesSnap.docs.map((d) => {
+      const doc = d.data() as EjecucionDocument;
+      return {
+        ...doc,
+        id: d.id,
+        fechaProgramada: doc.fechaProgramada.toDate().toISOString(),
+        fechaEjecutada: doc.fechaEjecutada.toDate().toISOString(),
+      };
+    });
   }
 
   // ==========================================================================

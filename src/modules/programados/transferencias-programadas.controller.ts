@@ -64,6 +64,19 @@ export class TransferenciasProgramadasController {
     await this.service.remove(user.uid, id);
   }
 
+  @Get(':id/ejecuciones')
+  @ApiOperation({
+    summary: 'Historial de ejecuciones de una transferencia programada',
+    description:
+      'Devuelve hasta 100 ejecuciones (auditoría del cron) ordenadas por fechaEjecutada descendente.',
+  })
+  findEjecuciones(
+    @CurrentUser() user: FirebaseUser,
+    @Param('id') id: string,
+  ) {
+    return this.service.findEjecuciones(user.uid, id);
+  }
+
   @Post(':id/pause')
   @ApiOperation({ summary: 'Pausar' })
   pause(@CurrentUser() user: FirebaseUser, @Param('id') id: string) {

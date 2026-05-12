@@ -82,7 +82,15 @@ export interface TransferenciaProgramadaDocument {
   cuentaOrigenId: string;
   cuentaDestinoId: string;
   monto: number;
-  moneda: string;
+  moneda: string;            // moneda de la cuenta origen
+  /**
+   * Moneda de la cuenta destino. Si difiere de `moneda` → cross-currency:
+   * el cron usa `exchangeRate` (o consulta API si `usarTasaActual: true`)
+   * y guarda `amountConverted` en el doc `transfers` generado.
+   */
+  monedaDestino?: string;
+  exchangeRate?: number;      // tasa fija configurada al crear (modo default)
+  usarTasaActual?: boolean;   // si true → ignora exchangeRate y consulta API
   descripcion?: string;
 
   // Schedule (idéntico a GastoProgramadoDocument)
@@ -141,4 +149,12 @@ export interface EjecucionDocument {
   gastoCreadoId?: string;
   transferCreadoId?: string;
   errorMensaje?: string;
+}
+
+/** Versión serializable para respuestas HTTP. */
+export interface Ejecucion
+  extends Omit<EjecucionDocument, 'fechaProgramada' | 'fechaEjecutada'> {
+  id: string;
+  fechaProgramada: string;
+  fechaEjecutada: string;
 }

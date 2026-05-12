@@ -24,6 +24,8 @@ import {
   TransferenciaProgramadaDocument,
 } from './interfaces/programado.interface';
 import { AccountDocument } from '../accounts/interfaces/account.interface';
+import { NotificacionesService } from '../notificaciones/notificaciones.service';
+import { FxService } from './utils/fx.service';
 
 const PROGRAMADOS_COLLECTION = 'gastosProgramados';
 const TRANSFERENCIAS_COLLECTION = 'transferenciasProgramadas';
@@ -44,6 +46,8 @@ export class ProgramadosCron {
     private readonly firebaseService: FirebaseService,
     private readonly programadosService: ProgramadosService,
     private readonly transferenciasService: TransferenciasProgramadasService,
+    private readonly notificacionesService: NotificacionesService,
+    private readonly fxService: FxService,
   ) {}
 
   /**
@@ -137,7 +141,7 @@ export class ProgramadosCron {
     const expenseRef = firestore.collection(EXPENSES_COLLECTION).doc();
 
     try {
-      await firestore.runTransaction(async (tx) => {
+      const txResult = await firestore.runTransaction(async (tx) => {
         const [accountSnap, programadoSnap] = await Promise.all([
           tx.get(accountRef),
           tx.get(programadoRef),
@@ -191,7 +195,10 @@ export class ProgramadosCron {
               updatedAt: Timestamp.now(),
             });
           }
-          return { skipped: true as const };
+          return {
+            kind: 'saldo_insuficiente' as const,
+            saldoActual,
+          };
         }
 
         // Crear expense con misma forma que ExpensesService.create
@@ -252,12 +259,31 @@ export class ProgramadosCron {
           gastoCreadoId: expenseRef.id,
         });
 
-        return { skipped: false as const };
+        return { kind: 'exitosa' as const };
       });
 
-      this.logger.log(
-        `Ejecutado programado ${programadaId} → expense ${expenseRef.id}`,
-      );
+      if (txResult.kind === 'saldo_insuficiente') {
+        this.logger.warn(
+          `Saldo insuficiente en gasto programado ${programadaId} (saldo=${txResult.saldoActual} < monto=${data.monto})`,
+        );
+        await this.notificacionesService.crear({
+          userId: data.userId,
+          tipo: 'saldo_insuficiente',
+          programadaId,
+          programadaTipo: 'gasto',
+          mensaje: `No se ejecutó el gasto programado "${data.descripcion}": saldo insuficiente (${data.moneda} ${txResult.saldoActual.toFixed(2)} < ${data.monto.toFixed(2)}).`,
+          metadata: {
+            monto: data.monto,
+            moneda: data.moneda,
+            saldoActual: txResult.saldoActual,
+          },
+          fechaEjecucionId: lockId,
+        });
+      } else {
+        this.logger.log(
+          `Ejecutado programado ${programadaId} → expense ${expenseRef.id}`,
+        );
+      }
     } catch (err) {
       const errorMensaje = err instanceof Error ? err.message : String(err);
       this.logger.error(`Tx fallida en programado ${programadaId}: ${errorMensaje}`);
@@ -270,6 +296,15 @@ export class ProgramadosCron {
       } catch (e) {
         this.logger.warn(`No se pudo marcar ejecución ${lockId} como fallida`);
       }
+      await this.notificacionesService.crear({
+        userId: data.userId,
+        tipo: 'ejecucion_fallida',
+        programadaId,
+        programadaTipo: 'gasto',
+        mensaje: `Error al ejecutar el gasto programado "${data.descripcion}": ${errorMensaje}`,
+        metadata: { monto: data.monto, moneda: data.moneda },
+        fechaEjecucionId: lockId,
+      });
     }
   }
 
@@ -312,8 +347,49 @@ export class ProgramadosCron {
     const toRef = firestore.collection(ACCOUNTS_COLLECTION).doc(data.cuentaDestinoId);
     const transferRef = firestore.collection(TRANSFERS_COLLECTION).doc();
 
+    // Resolver tipo de cambio FUERA de la transacción (fetch externo no debe
+    // estar dentro de runTransaction). Si la API falla y usarTasaActual=true
+    // → abortar antes de tocar el lock para que reintente en el siguiente tick.
+    const monedaDestino = data.monedaDestino ?? data.moneda;
+    const esCrossCurrency = monedaDestino !== data.moneda;
+    let exchangeRate = 1;
+    let amountConverted = data.monto;
+    if (esCrossCurrency) {
+      try {
+        if (data.usarTasaActual) {
+          exchangeRate = await this.fxService.getRate(data.moneda, monedaDestino);
+        } else if (data.exchangeRate && data.exchangeRate > 0) {
+          exchangeRate = data.exchangeRate;
+        } else {
+          throw new Error(
+            `Programado ${programadaId}: cross-currency sin exchangeRate ni usarTasaActual`,
+          );
+        }
+        amountConverted = Number((data.monto * exchangeRate).toFixed(2));
+      } catch (err) {
+        const errorMensaje = err instanceof Error ? err.message : String(err);
+        this.logger.error(
+          `FX error en transferencia ${programadaId}: ${errorMensaje}`,
+        );
+        await ejecucionRef.update({
+          estado: 'fallida',
+          errorMensaje: `FX: ${errorMensaje}`,
+        });
+        await this.notificacionesService.crear({
+          userId: data.userId,
+          tipo: 'fx_api_error',
+          programadaId,
+          programadaTipo: 'transferencia',
+          mensaje: `No se ejecutó la transferencia "${data.descripcion ?? ''}": no se pudo obtener el tipo de cambio ${data.moneda}→${monedaDestino}.`,
+          metadata: { monto: data.monto, moneda: data.moneda },
+          fechaEjecucionId: lockId,
+        });
+        return;
+      }
+    }
+
     try {
-      await firestore.runTransaction(async (tx) => {
+      const txResult = await firestore.runTransaction(async (tx) => {
         const [fromSnap, toSnap, programadoSnap] = await Promise.all([
           tx.get(fromRef),
           tx.get(toRef),
@@ -336,7 +412,7 @@ export class ProgramadosCron {
             activo: false,
             updatedAt: Timestamp.now(),
           });
-          return;
+          return { kind: 'cuenta_destino_eliminada' as const };
         }
 
         if (!fromSnap.exists) {
@@ -348,7 +424,7 @@ export class ProgramadosCron {
             activo: false,
             updatedAt: Timestamp.now(),
           });
-          return;
+          return { kind: 'cuenta_origen_eliminada' as const };
         }
 
         const from = fromSnap.data() as AccountDocument;
@@ -387,19 +463,24 @@ export class ProgramadosCron {
               updatedAt: Timestamp.now(),
             });
           }
-          return;
+          return {
+            kind: 'saldo_insuficiente' as const,
+            saldoActual: from.bankBalance,
+          };
         }
 
         const now = Timestamp.now();
 
-        // Crear documento Transfer (misma forma que TransfersService.create)
+        // Crear documento Transfer (misma forma que TransfersService.create).
+        // amountConverted y exchangeRate ya están resueltos arriba (mismo
+        // currency = 1, cross-currency = tasa fija o de Frankfurter).
         const transferDoc: Record<string, any> = {
           userId: data.userId,
           fromAccountId: data.cuentaOrigenId,
           toAccountId: data.cuentaDestinoId,
           amount: data.monto,
-          amountConverted: data.monto, // mismo currency
-          exchangeRate: 1,
+          amountConverted,
+          exchangeRate,
           fromCurrency: from.currency,
           toCurrency: to.currency,
           date: data.proximaEjecucion,
@@ -416,7 +497,7 @@ export class ProgramadosCron {
           updatedAt: now,
         });
         tx.update(toRef, {
-          bankBalance: to.bankBalance + data.monto,
+          bankBalance: to.bankBalance + amountConverted,
           updatedAt: now,
         });
 
@@ -450,11 +531,58 @@ export class ProgramadosCron {
           estado: 'exitosa',
           transferCreadoId: transferRef.id,
         });
+
+        return { kind: 'exitosa' as const };
       });
 
-      this.logger.log(
-        `Ejecutada transferencia programada ${programadaId} → transfer ${transferRef.id}`,
-      );
+      const descripcionPrograma = data.descripcion ?? 'transferencia';
+
+      if (txResult.kind === 'saldo_insuficiente') {
+        this.logger.warn(
+          `Saldo insuficiente en transferencia programada ${programadaId} (saldo=${txResult.saldoActual} < monto=${data.monto})`,
+        );
+        await this.notificacionesService.crear({
+          userId: data.userId,
+          tipo: 'saldo_insuficiente',
+          programadaId,
+          programadaTipo: 'transferencia',
+          mensaje: `No se ejecutó la transferencia "${descripcionPrograma}": saldo insuficiente (${data.moneda} ${txResult.saldoActual.toFixed(2)} < ${data.monto.toFixed(2)}).`,
+          metadata: {
+            monto: data.monto,
+            moneda: data.moneda,
+            saldoActual: txResult.saldoActual,
+          },
+          fechaEjecucionId: lockId,
+        });
+      } else if (txResult.kind === 'cuenta_destino_eliminada') {
+        this.logger.warn(
+          `Transferencia programada ${programadaId} pausada: cuenta destino eliminada`,
+        );
+        await this.notificacionesService.crear({
+          userId: data.userId,
+          tipo: 'cuenta_destino_eliminada',
+          programadaId,
+          programadaTipo: 'transferencia',
+          mensaje: `Transferencia programada "${descripcionPrograma}" pausada porque la cuenta destino fue eliminada.`,
+          fechaEjecucionId: lockId,
+        });
+      } else if (txResult.kind === 'cuenta_origen_eliminada') {
+        this.logger.warn(
+          `Transferencia programada ${programadaId} pausada: cuenta origen eliminada`,
+        );
+        await this.notificacionesService.crear({
+          userId: data.userId,
+          tipo: 'ejecucion_fallida',
+          programadaId,
+          programadaTipo: 'transferencia',
+          mensaje: `Transferencia programada "${descripcionPrograma}" pausada porque la cuenta origen fue eliminada.`,
+          fechaEjecucionId: lockId,
+        });
+      } else {
+        this.logger.log(
+          `Ejecutada transferencia programada ${programadaId} → transfer ${transferRef.id}`,
+        );
+      }
     } catch (err) {
       const errorMensaje = err instanceof Error ? err.message : String(err);
       this.logger.error(
@@ -468,6 +596,15 @@ export class ProgramadosCron {
       } catch {
         this.logger.warn(`No se pudo marcar ejecución ${lockId} como fallida`);
       }
+      await this.notificacionesService.crear({
+        userId: data.userId,
+        tipo: 'ejecucion_fallida',
+        programadaId,
+        programadaTipo: 'transferencia',
+        mensaje: `Error al ejecutar la transferencia programada "${data.descripcion ?? ''}": ${errorMensaje}`,
+        metadata: { monto: data.monto, moneda: data.moneda },
+        fechaEjecucionId: lockId,
+      });
     }
   }
 }

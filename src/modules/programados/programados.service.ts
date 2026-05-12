@@ -10,6 +10,8 @@ import { FirebaseService } from '../firebase/firebase.service';
 import { CreateGastoProgramadoDto } from './dto/create-gasto-programado.dto';
 import { UpdateGastoProgramadoDto } from './dto/update-gasto-programado.dto';
 import {
+  Ejecucion,
+  EjecucionDocument,
   GastoProgramado,
   GastoProgramadoDocument,
 } from './interfaces/programado.interface';
@@ -18,6 +20,7 @@ import { AccountDocument } from '../accounts/interfaces/account.interface';
 
 const COLLECTION = 'gastosProgramados';
 const ACCOUNTS = 'accounts';
+const EJECUCIONES = 'ejecucionesProgramadas';
 
 @Injectable()
 export class ProgramadosService {
@@ -385,6 +388,48 @@ export class ProgramadosService {
 
   async resume(userId: string, id: string): Promise<GastoProgramado> {
     return this.update(userId, id, { activo: true });
+  }
+
+  // ==========================================================================
+  // AUDITORÍA — historial de ejecuciones de un programado
+  // ==========================================================================
+
+  /**
+   * Devuelve el historial de ejecuciones de un gasto programado, validando
+   * que pertenezca al usuario. Ordenado por `fechaEjecutada` descendente.
+   */
+  async findEjecuciones(
+    userId: string,
+    programadaId: string,
+    limit = 100,
+  ): Promise<Ejecucion[]> {
+    const ref = this.firebaseService
+      .getFirestore()
+      .collection(COLLECTION)
+      .doc(programadaId);
+    const snap = await ref.get();
+    if (!snap.exists) throw new NotFoundException('Programación no encontrada');
+    const data = snap.data() as GastoProgramadoDocument;
+    if (data.userId !== userId) throw new ForbiddenException('Acceso denegado');
+
+    const ejecucionesSnap = await this.firebaseService
+      .getFirestore()
+      .collection(EJECUCIONES)
+      .where('programadaId', '==', programadaId)
+      .where('userId', '==', userId)
+      .orderBy('fechaEjecutada', 'desc')
+      .limit(limit)
+      .get();
+
+    return ejecucionesSnap.docs.map((d) => {
+      const doc = d.data() as EjecucionDocument;
+      return {
+        ...doc,
+        id: d.id,
+        fechaProgramada: doc.fechaProgramada.toDate().toISOString(),
+        fechaEjecutada: doc.fechaEjecutada.toDate().toISOString(),
+      };
+    });
   }
 
   // ==========================================================================
