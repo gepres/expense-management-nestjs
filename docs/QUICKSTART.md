@@ -125,7 +125,11 @@ curl -H "Authorization: Bearer YOUR_ID_TOKEN" \
 
 ## Documentación completa
 
-Ver [README.md](./README.md) para documentación completa.
+- [README.md](../README.md) — visión general del proyecto
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — arquitectura y modelo de datos
+- [API.md](./API.md) — referencia de endpoints
+- [AUTHENTICATION.md](./AUTHENTICATION.md) — cómo autenticarse
+- [DEPLOYMENT.md](./DEPLOYMENT.md) — despliegue a producción
 
 ## Problemas comunes
 
@@ -146,6 +150,7 @@ PORT=3001
 ## Ayuda
 
 Para más ayuda, consulta:
-- [README.md](./README.md) - Documentación completa
-- [Swagger Docs](http://localhost:3000/api/docs) - Documentación de API
+- [README.md](../README.md) - Visión general del proyecto
+- [docs/README.md](./README.md) - Índice de toda la documentación
+- [Swagger Docs](http://localhost:3000/api/docs) - Documentación interactiva de API
 - [Issues](https://github.com/tu-repo/issues) - Reportar problemas

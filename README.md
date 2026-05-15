@@ -1,399 +1,224 @@
 # Gastos Backend API
 
-API REST para asistente IA especializado en gestión de gastos personales, construida con NestJS, Firebase (Auth + Firestore) y Anthropic Claude.
+API REST para un asistente de IA especializado en gestión de gastos personales. Construida con **NestJS 11**, **Firebase** (Auth + Firestore + Storage) y **Anthropic Claude**, con ingestión por **WhatsApp**, escaneo de comprobantes con **Claude Vision**, importación desde Excel/JSON y operaciones recurrentes (gastos y transferencias programadas) accionadas por cron.
 
-## Descripción
+> **Idioma de la documentación:** la documentación de usuario está en español. `CLAUDE.md` (guía para Claude Code) se mantiene en inglés a propósito.
 
-Backend completo que proporciona:
-- Autenticación con Firebase Authentication
-- Almacenamiento en Firestore
-- Asistente IA con Claude (Anthropic)
-- Gestión de gastos personales
-- Escaneo de comprobantes con OCR/Vision
-- Importación desde Excel
-- Análisis financiero con IA
-- **Programados (recurrentes)**: gastos y transferencias automáticas con cron y zona horaria del usuario
+---
 
-## Tecnologías
+## 📚 Índice de documentación
 
-- **NestJS** - Framework backend
-- **TypeScript** - Lenguaje
-- **Firebase Admin SDK** - Auth + Firestore + Storage
-- **Anthropic Claude** - IA para chat y análisis
-- **Swagger/OpenAPI** - Documentación de API
-- **Class-validator** - Validación de DTOs
-- **Sharp** - Procesamiento de imágenes
-- **ExcelJS** - Importación de Excel
-- **@nestjs/schedule** - Cron jobs (procesador de gastos/transferencias programadas)
-- **date-fns + date-fns-tz** - Cálculo de próximas ejecuciones con zona horaria del usuario
+Toda la documentación detallada vive en [`docs/`](./docs). Punto de entrada: [`docs/README.md`](./docs/README.md).
 
-## Requisitos Previos
+| Documento | Contenido |
+|---|---|
+| [docs/QUICKSTART.md](./docs/QUICKSTART.md) | Puesta en marcha en ~5 minutos |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Arquitectura, módulos, modelo de datos Firestore, flujo de request, cron de programados |
+| [docs/API.md](./docs/API.md) | Referencia completa de endpoints (todos los módulos) |
+| [docs/AUTHENTICATION.md](./docs/AUTHENTICATION.md) | Cómo autenticarse (Swagger, cURL, Postman, scripts) y obtener un Firebase ID Token |
+| [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | Despliegue en Vercel, variables de producción, cron vía GitHub Actions, reglas/índices Firestore |
+| [docs/RECEIPTS_TESTING.md](./docs/RECEIPTS_TESTING.md) | Guía de pruebas del módulo de comprobantes (OCR/Vision) |
+| [docs/WHATSAPP_FLOW.md](./docs/WHATSAPP_FLOW.md) | Flujo WhatsApp productor/consumidor end-to-end (al día) |
+| [docs/WHATSAPP_HYBRID_SETUP.md](./docs/WHATSAPP_HYBRID_SETUP.md) | Guía histórica de la migración a arquitectura híbrida |
 
-- Node.js >= 18.x
-- npm >= 9.x
-- Cuenta de Firebase con proyecto configurado
-- API Key de Anthropic
-- Archivo de credenciales de Firebase Admin SDK
+---
 
-## Instalación
+## ✨ Características
 
-### 1. Clonar el repositorio
+- **Autenticación Firebase** — todos los endpoints (salvo `/api/health` y la raíz) requieren un Firebase ID Token.
+- **Gestión de gastos** — CRUD, filtros, parseo en lenguaje natural, export JSON/Excel.
+- **Asistente IA (Claude)** — chat contextual multi-turno, análisis de patrones de gasto, categorización.
+- **Escaneo de comprobantes** — OCR con Claude Vision (Yape/Plin/boletas/transferencias), detección de subcategorías.
+- **Importación masiva** — Excel/JSON con validación, detección de duplicados y mejora con IA.
+- **Multi-cuenta** — cuentas (banco, ahorro, billetera, tarjeta) con sub-saldos banco/efectivo.
+- **Transferencias atómicas** — entre cuentas, con conversión de moneda.
+- **Movimientos de efectivo** — ingreso / retiro / depósito / reversión (atómicos).
+- **Presupuestos** — sub-reservas opcionales por categoría.
+- **Programados (recurrentes)** — gastos y transferencias automáticas vía cron, timezone-aware, idempotentes.
+- **Notificaciones in-app** — alertas generadas por el cron (saldo insuficiente, ejecución fallida, error FX, etc.).
+- **Ingestión WhatsApp** — webhook productor/consumidor desacoplado por una cola Firestore (consumidor en repo aparte).
+- **Voz, atajos, listas de compra, grupos compartidos** — módulos complementarios.
 
-```bash
-git clone <repository-url>
-cd gastos-backend
-```
+---
 
-### 2. Instalar dependencias
+## 🧱 Stack tecnológico
+
+| Capa | Tecnología |
+|---|---|
+| Framework | NestJS 11 (Express) |
+| Lenguaje | TypeScript 5.7 |
+| Auth + BD + Storage | Firebase Admin SDK 13 (Auth, Firestore, Storage) |
+| IA | Anthropic Claude (`@anthropic-ai/sdk`) |
+| Imágenes | Sharp + Cloudinary |
+| Excel | ExcelJS + xlsx |
+| Cron | `@nestjs/schedule` (local) + GitHub Actions (producción serverless) |
+| Fechas/TZ | `date-fns` + `date-fns-tz` |
+| Mensajería | Twilio (WhatsApp) |
+| Validación | class-validator / class-transformer |
+| Docs API | Swagger / OpenAPI (`@nestjs/swagger`) |
+
+---
+
+## 🚀 Inicio rápido
 
 ```bash
 npm install
+cp .env.example .env        # editar con tus credenciales
+npm run start:dev           # http://localhost:3000
 ```
 
-### 3. Configurar variables de entorno
+- API: `http://localhost:3000/api`
+- Health: `http://localhost:3000/api/health`
+- Swagger: `http://localhost:3000/api/docs`
 
-Copiar el archivo de ejemplo y configurar:
+Guía paso a paso (Firebase, Anthropic, Cloudinary, reglas): **[docs/QUICKSTART.md](./docs/QUICKSTART.md)**.
+
+---
+
+## 🛠️ Scripts
 
 ```bash
-cp .env.example .env
+npm run start:dev    # desarrollo con hot-reload (alias: npm run dev)
+npm run build        # compilar a dist/
+npm run start:prod   # ejecutar build de producción
+npm run test         # tests unitarios
+npm run test:watch   # tests en watch
+npm run test:cov     # coverage
+npm run test:e2e     # tests end-to-end
+npm run lint         # ESLint con --fix
+npm run format       # Prettier
 ```
-
-Editar `.env` con tus credenciales:
-
-```env
-# Application
-NODE_ENV=development
-PORT=3000
-
-# CORS
-CORS_ORIGIN=http://localhost:5173,http://localhost:3001
-
-# Firebase
-FIREBASE_SERVICE_ACCOUNT_PATH=./firebase-service-account.json
-FIREBASE_STORAGE_BUCKET=your-project.appspot.com
-
-# Anthropic
-ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxx
-ANTHROPIC_MODEL=claude-sonnet-4-20250514
-```
-
-### 4. Configurar Firebase
-
-1. Ve a [Firebase Console](https://console.firebase.google.com/)
-2. Selecciona tu proyecto
-3. Ve a **Project Settings** → **Service Accounts**
-4. Click en **Generate new private key**
-5. Guarda el archivo como `firebase-service-account.json` en la raíz del proyecto
-
-**IMPORTANTE:** Nunca commitees este archivo. Ya está en `.gitignore`.
-
-### 5. Configurar Firestore Rules
-
-En Firebase Console → Firestore Database → Rules:
-
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-  }
-}
-```
-
-### 6. Configurar Storage Rules
-
-En Firebase Console → Storage → Rules:
-
-```javascript
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /receipts/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-  }
-}
-```
-
-## Scripts Disponibles
 
 ```bash
-# Desarrollo
-npm run start:dev      # Modo watch con hot-reload
-
-# Producción
-npm run build          # Compilar proyecto
-npm run start:prod     # Ejecutar versión compilada
-
-# Testing
-npm run test           # Unit tests
-npm run test:watch     # Tests en modo watch
-npm run test:cov       # Coverage
-npm run test:e2e       # End-to-end tests
-
-# Linting y formato
-npm run lint           # ESLint
-npm run format         # Prettier
+# Test individual
+npx jest src/modules/expenses/expenses.service.spec.ts
+npx jest --testNamePattern="should create expense"
 ```
 
-## Estructura del Proyecto
+---
+
+## 📂 Estructura del proyecto
 
 ```
 src/
-├── config/                    # Configuraciones
-│   ├── env.validation.ts      # Validación de variables de entorno
-│   ├── firebase.config.ts     # Config Firebase
-│   └── anthropic.config.ts    # Config Anthropic
-├── common/                    # Utilidades compartidas
-│   ├── decorators/           # @CurrentUser(), etc.
-│   ├── filters/              # Exception filters
-│   ├── guards/               # FirebaseAuthGuard
-│   ├── interceptors/         # Logging interceptor
-│   └── interfaces/           # Interfaces compartidas
+├── config/                       # env.validation, firebase/anthropic/cloudinary config
+├── common/                       # decorators (@CurrentUser), guards (FirebaseAuthGuard),
+│                                 # filters, interceptors, interfaces compartidas
 ├── modules/
-│   ├── firebase/             # Firebase Admin SDK
-│   ├── anthropic/            # Anthropic/Claude service
-│   ├── users/                # Gestión de usuarios
-│   ├── categories/           # Categorías de gastos
-│   ├── chat/                 # Conversaciones con IA
-│   ├── expenses/             # CRUD de gastos
-│   ├── receipts/             # Escaneo de comprobantes
-│   ├── import/               # Importación desde Excel
-│   ├── accounts/             # Multi-cuenta
-│   ├── transfers/            # Transferencias entre cuentas
-│   ├── cash-movements/       # Retiros / depósitos / income
-│   ├── presupuestos/         # Sub-reservas por categoría
-│   └── programados/          # ⏰ Gastos y transferencias recurrentes (cron)
-├── app.module.ts             # Módulo principal
-└── main.ts                   # Bootstrap de la aplicación
+│   ├── firebase/                 # Firebase Admin SDK (global)
+│   ├── anthropic/                # Cliente Claude: chat, vision, categorización (global)
+│   ├── users/                    # Perfil, inicialización, link WhatsApp
+│   ├── categories/               # Categorías + subcategorías + sugerencias
+│   ├── payment-methods/          # Métodos de pago
+│   ├── currencies/               # Monedas
+│   ├── expenses/                 # CRUD de gastos, parseo NL, export JSON/Excel
+│   ├── receipts/                 # Escaneo OCR con Claude Vision
+│   ├── chat/                     # Conversaciones persistentes con IA
+│   ├── import/                   # Importación Excel/JSON (validate/analyze/upload)
+│   ├── accounts/                 # Multi-cuenta (banco/ahorro/billetera/tarjeta)
+│   ├── transfers/                # Transferencias atómicas entre cuentas
+│   ├── cash-movements/           # Ingreso / retiro / depósito / reversión
+│   ├── presupuestos/             # Sub-reservas por categoría
+│   ├── programados/              # ⏰ Gastos y transferencias recurrentes (cron)
+│   ├── notificaciones/           # Alertas in-app generadas por el cron
+│   ├── shortcuts/                # Atajos de gasto rápido
+│   ├── voice/                    # Procesamiento de gastos por voz
+│   ├── shopping-lists/           # Listas de compra
+│   ├── shared/                   # Grupos de gastos compartidos
+│   └── whatsapp/                 # Webhook (productor) + link/unlink + legacy
+├── app.module.ts
+└── main.ts                       # Bootstrap: prefix /api, CORS, ValidationPipe, Swagger
 ```
 
-## Uso de la API
+> **Modelo de datos Firestore, patrón de request y detalle de cada módulo:** ver [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
-### Autenticación
+---
 
-Todos los endpoints (excepto `/health`) requieren autenticación con Firebase ID Token:
+## 🔐 Autenticación
 
-```bash
+Todos los endpoints (excepto `GET /api/health` y `GET /`) requieren un **Firebase ID Token**:
+
+```
 Authorization: Bearer <firebase-id-token>
 ```
 
-### Documentación Swagger
+El cron de programados usa un esquema aparte: `Authorization: Bearer ${CRON_SECRET}` sobre `POST /api/programados/cron/run`.
 
-Una vez iniciado el servidor, accede a:
+Métodos para obtener un token y probar la API: **[docs/AUTHENTICATION.md](./docs/AUTHENTICATION.md)**.
 
-```
-http://localhost:3000/api/docs
-```
+---
 
-### Ejemplos de Endpoints
+## ⚙️ Variables de entorno
 
-#### Obtener perfil del usuario
+Definidas y validadas al arrancar en `src/config/env.validation.ts` (config inválida → fallo inmediato). Plantilla completa en [`.env.example`](./.env.example).
 
-```bash
-GET /api/users/profile
-Authorization: Bearer <token>
-```
+| Variable | Req. | Default | Descripción |
+|---|:---:|---|---|
+| `NODE_ENV` | no | `development` | `development` \| `production` \| `test` |
+| `PORT` | no | `3000` | Puerto HTTP |
+| `CORS_ORIGIN` | no | `http://localhost:5173` | Orígenes permitidos, separados por coma |
+| `FIREBASE_SERVICE_ACCOUNT_PATH` | * | — | Ruta al JSON de service account (modo archivo) |
+| `FIREBASE_PROJECT_ID` | * | — | Alternativa por variables (producción) |
+| `FIREBASE_PRIVATE_KEY` | * | — | Idem (con `\n` escapados) |
+| `FIREBASE_CLIENT_EMAIL` | * | — | Idem |
+| `FIREBASE_STORAGE_BUCKET` | no | — | Bucket de Storage |
+| `ANTHROPIC_API_KEY` | **sí** | — | API key de Anthropic |
+| `ANTHROPIC_MODEL` | no | `claude-sonnet-4-20250514` | Modelo de Claude |
+| `CLOUDINARY_CLOUD_NAME` / `_API_KEY` / `_API_SECRET` | no | — | Credenciales Cloudinary (receipts) |
+| `MAX_FILE_SIZE` | no | `5242880` | Tamaño máx. de imagen (bytes) |
+| `ALLOWED_IMAGE_TYPES` | no | `image/jpeg,image/png,image/webp` | MIME permitidos |
+| `THROTTLE_TTL` | no | `60000` | Ventana de rate limit (ms) |
+| `THROTTLE_LIMIT` | no | `100` | Límite general / minuto |
+| `SCAN_THROTTLE_LIMIT` | no | `10` | Límite escaneo / minuto |
+| `AI_THROTTLE_LIMIT` | no | `20` | Límite llamadas IA / minuto |
+| `LOG_LEVEL` | no | `debug` | Nivel de log |
+| `CRON_SECRET` | no | — | Token Bearer del cron externo (producción serverless) |
 
-#### Listar categorías
+`*` Firebase admite **dos modos**: archivo (`FIREBASE_SERVICE_ACCOUNT_PATH`) **o** variables individuales (`FIREBASE_PROJECT_ID` + `FIREBASE_PRIVATE_KEY` + `FIREBASE_CLIENT_EMAIL`).
 
-```bash
-GET /api/categories
-Authorization: Bearer <token>
-```
+---
 
-#### Crear gasto
+## 🚦 Rate limiting
 
-```bash
-POST /api/expenses
-Authorization: Bearer <token>
-Content-Type: application/json
+Tres niveles (`app.module.ts` → `ThrottlerModule`):
 
-{
-  "amount": 45.50,
-  "currency": "PEN",
-  "category": "Alimentación",
-  "description": "Almuerzo",
-  "date": "2025-01-15T12:00:00Z",
-  "paymentMethod": "yape",
-  "merchant": "Restaurante El Paisa"
-}
-```
+- **default**: 100 req/min
+- **scan**: 10 req/min (escaneo de comprobantes)
+- **ai**: 20 req/min (llamadas a IA)
 
-#### Escanear comprobante
+---
 
-```bash
-POST /api/receipts/scan
-Authorization: Bearer <token>
-Content-Type: multipart/form-data
+## ☁️ Despliegue
 
-file: <imagen-del-comprobante.jpg>
-```
+El backend corre en **Vercel (serverless)**. En ese entorno `@nestjs/schedule` **no** mantiene un proceso vivo, por lo que el cron de programados se dispara con un **GitHub Actions** cada 15 min (`POST /api/programados/cron/run` con `Authorization: Bearer ${CRON_SECRET}`).
 
-#### Chat con IA
+Guía completa (variables de producción, workflow del cron, reglas e índices de Firestore): **[docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)**.
 
-```bash
-POST /api/chat/conversations/:conversationId/messages
-Authorization: Bearer <token>
-Content-Type: application/json
+---
 
-{
-  "content": "¿Cuánto gasté en alimentación este mes?"
-}
-```
+## 🩺 Troubleshooting
 
-## Integración con Frontend
+| Síntoma | Causa probable / solución |
+|---|---|
+| `Firebase credentials not found` | Falta `firebase-service-account.json` o las 3 variables `FIREBASE_*` |
+| `Anthropic API key invalid` | `ANTHROPIC_API_KEY` inválida o sin créditos |
+| Error CORS | Agregar el origen del frontend a `CORS_ORIGIN` |
+| `Token expired` | Los ID Token de Firebase expiran cada hora; el cliente debe refrescarlos |
+| Puerto 3000 ocupado | Cambiar `PORT` en `.env` |
+| Config inválida al arrancar | Revisar `src/config/env.validation.ts` y `.env` |
 
-### Flujo de Autenticación
+Más detalle por módulo en [docs/RECEIPTS_TESTING.md](./docs/RECEIPTS_TESTING.md) (comprobantes) y [docs/WHATSAPP_FLOW.md](./docs/WHATSAPP_FLOW.md) (WhatsApp).
 
-```javascript
-// 1. Autenticar en Firebase (frontend)
-import { signInWithEmailAndPassword } from 'firebase/auth';
+---
 
-const userCredential = await signInWithEmailAndPassword(auth, email, password);
-const idToken = await userCredential.user.getIdToken();
+## 🤝 Contribuir
 
-// 2. Usar token en requests al backend
-const response = await fetch('http://localhost:3000/api/expenses', {
-  headers: {
-    'Authorization': `Bearer ${idToken}`,
-    'Content-Type': 'application/json',
-  },
-});
+1. Crea una rama (`git checkout -b feature/nueva-funcionalidad`)
+2. Commitea los cambios
+3. Abre un Pull Request
 
-// 3. Refresh automático del token
-onIdTokenChanged(auth, async (user) => {
-  if (user) {
-    const token = await user.getIdToken(true);
-    // Actualizar token en tu estado global
-  }
-});
-```
-
-## Características Principales
-
-### 1. Gestión de Gastos
-- CRUD completo de gastos
-- Filtrado por fecha, categoría, monto, método de pago
-- Verificación manual de gastos
-- Estadísticas y resúmenes
-
-### 2. Asistente IA
-- Chat contextual sobre finanzas personales
-- Análisis de patrones de gasto
-- Recomendaciones personalizadas
-- Generación de reportes
-
-### 3. Escaneo de Comprobantes
-- OCR con Claude Vision
-- Extracción automática de datos (monto, fecha, comercio)
-- Detección de Yape, Plin, transferencias
-- Sugerencia de categoría
-- Nivel de confianza de extracción
-
-### 4. Importación de Datos
-- Descarga de plantilla Excel
-- Validación de datos antes de importar
-- Mejora con IA (categorización, descripciones)
-- Detección de duplicados
-- Importación masiva eficiente
-
-### 5. Categorías
-- 8 categorías predeterminadas
-- Creación de categorías personalizadas
-- Validación de eliminación (sin gastos asociados)
-
-### 6. Programados (recurrentes)
-- **Gastos programados**: plantillas que generan un `expense` automáticamente (alquiler, suscripciones, etc.)
-- **Transferencias programadas**: mueven dinero entre cuentas del usuario (mismo currency)
-- **Frecuencias**: diaria, semanal, quincenal (cada 15 días), mensual (día específico u "último día"), personalizada (cada N días), única
-- **Cron** cada 30 min con `@nestjs/schedule`. Idempotente vía lock determinístico en `ejecucionesProgramadas/{programadaId}_{fechaISO}`
-- **Timezone-aware**: cálculo en hora local del usuario con `date-fns-tz`, almacenamiento en UTC
-- **Manejo de saldo insuficiente**: marca la ejecución pero **avanza próxima** (no se atasca)
-- **Reglas Firestore**: write bloqueado al cliente — solo el backend (Admin SDK) escribe
-- Endpoints: `/api/programados/gastos`, `/api/programados/transferencias` (CRUD + pause/resume)
-
-## Seguridad
-
-- Autenticación obligatoria con Firebase ID Tokens
-- Validación de ownership en todas las operaciones
-- Validación de DTOs con class-validator
-- Rate limiting configurado
-- CORS configurado para orígenes específicos
-- Sanitización de inputs
-- No exposición de errores internos
-
-## Rate Limiting
-
-- General: 100 requests/minuto
-- Escaneo de recibos: 10 requests/minuto
-- Llamadas a IA: 20 requests/minuto
-
-## Deployment
-
-### Variables de Entorno para Producción
-
-En lugar de usar archivo `firebase-service-account.json`, configura:
-
-```env
-FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-FIREBASE_CLIENT_EMAIL=firebase-adminsdk@your-project.iam.gserviceaccount.com
-```
-
-### Build para Producción
-
-```bash
-npm run build
-npm run start:prod
-```
-
-### Health Check
-
-```bash
-GET /api/health
-```
-
-Verifica el estado de Firebase y Anthropic.
-
-## Troubleshooting
-
-### Error: Firebase credentials not found
-
-Asegúrate de que:
-- El archivo `firebase-service-account.json` existe
-- O las variables `FIREBASE_PROJECT_ID`, `FIREBASE_PRIVATE_KEY`, `FIREBASE_CLIENT_EMAIL` están configuradas
-
-### Error: Anthropic API key invalid
-
-Verifica que `ANTHROPIC_API_KEY` en `.env` es válida y tiene créditos.
-
-### Error: CORS
-
-Agrega el origen de tu frontend a `CORS_ORIGIN` en `.env`:
-
-```env
-CORS_ORIGIN=http://localhost:5173,https://tu-dominio.com
-```
-
-### Token expired
-
-Los tokens de Firebase expiran cada hora. El frontend debe refrescarlos automáticamente.
-
-## Contribuir
-
-1. Fork el proyecto
-2. Crea una rama (`git checkout -b feature/nueva-funcionalidad`)
-3. Commit cambios (`git commit -am 'Agregar nueva funcionalidad'`)
-4. Push a la rama (`git push origin feature/nueva-funcionalidad`)
-5. Crear Pull Request
+Antes de cualquier cambio revisa **[CLAUDE.md](./CLAUDE.md)** y **[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)** para respetar los patrones críticos (ownership por `userId`, idempotencia del cron, escrituras bloqueadas al cliente en colecciones de programados).
 
 ## Licencia
 
 MIT
-
-## Soporte
-
-Para preguntas y soporte, abre un issue en el repositorio.

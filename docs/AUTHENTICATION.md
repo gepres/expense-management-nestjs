@@ -219,34 +219,18 @@ curl -X POST \
 
 ## 📚 Endpoints Disponibles
 
-### Usuarios
-- `GET /api/users/profile` - Obtener perfil
-- `PATCH /api/users/profile` - Actualizar perfil
-- `POST /api/users/initialize` - Inicializar usuario
+La API expone ~20 módulos (users, categories, expenses, receipts, chat, import,
+accounts, transfers, cash-movements, presupuestos, programados, notificaciones,
+shortcuts, voice, shopping-lists, shared-groups, whatsapp, …).
 
-### Categorías
-- `GET /api/categories` - Listar todas
-- `GET /api/categories/:id` - Obtener una
-- `POST /api/categories` - Crear
-- `PATCH /api/categories/:id` - Actualizar
-- `DELETE /api/categories/:id` - Eliminar
-- `POST /api/categories/:categoryId/subcategories` - Agregar subcategoría
-- `PATCH /api/categories/:categoryId/subcategories/:subcategoryId` - Actualizar subcategoría
-- `DELETE /api/categories/:categoryId/subcategories/:subcategoryId` - Eliminar subcategoría
+➡️ **Referencia completa de endpoints:** [API.md](./API.md)
+➡️ **Documentación interactiva (con esquemas):** `http://localhost:3000/api/docs`
 
-### Métodos de Pago
-- `GET /api/payment-methods` - Listar todos
-- `GET /api/payment-methods/:id` - Obtener uno
-- `POST /api/payment-methods` - Crear
-- `PATCH /api/payment-methods/:id` - Actualizar
-- `DELETE /api/payment-methods/:id` - Eliminar
+Todos requieren `Authorization: Bearer <firebase-id-token>` salvo:
 
-### Monedas
-- `GET /api/currencies` - Listar todas
-- `GET /api/currencies/:id` - Obtener una
-- `POST /api/currencies` - Crear
-- `PATCH /api/currencies/:id` - Actualizar
-- `DELETE /api/currencies/:id` - Eliminar
+- `GET /api/health` y `GET /api` — públicos
+- `POST /api/whatsapp/webhook` — lo invoca Twilio (sin auth Firebase)
+- `POST /api/programados/cron/run` — usa `Authorization: Bearer ${CRON_SECRET}`
 
 ---
 

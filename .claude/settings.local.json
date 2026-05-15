@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(cmd /c \"dir /b /ad src\\\\modules\")",
+      "Bash(cmd /c \"dir /b *.md\")",
+      "Bash(cmd /c \"if exist docs \\(dir /b docs\\) else \\(echo NO_DOCS_DIR\\)\")",
+      "PowerShell(Get-ChildItem \"D:\\\\PROYECTOS\\\\gepres\\\\gastos-backend\\\\src\\\\modules\\\\fcm\" -Recurse -File | Select-Object -ExpandProperty Name; \"---WORKFLOW---\"; Get-Content \"D:\\\\PROYECTOS\\\\gepres\\\\gastos-backend\\\\.github\\\\workflows\\\\cron-programados.yml\")",
+      "PowerShell(Get-ChildItem *)"
+    ]
+  }
+}
