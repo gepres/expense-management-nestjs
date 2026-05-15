@@ -1,5 +1,9 @@
 # WhatsApp Hybrid Architecture - Setup Guide
 
+> ⚠️ **Documento histórico (guía de migración).** La Fase 2 (Firebase
+> Functions) ya está **implementada y en producción**. Para el flujo
+> end-to-end actualizado y preciso ver **[`WHATSAPP_FLOW.md`](./WHATSAPP_FLOW.md)**.
+
 ## Overview
 
 The WhatsApp integration now uses a **hybrid architecture**:
@@ -36,9 +40,15 @@ Created `whatsapp-queue.controller.ts` that:
 - `whatsapp.controller.ts` remains unchanged
 - Still handles `/whatsapp/link` and `/whatsapp/unlink` endpoints
 
-### ⏳ Phase 2: Firebase Functions (PENDING)
+### ✅ Phase 2: Firebase Functions (COMPLETED)
 
-**Next Steps:**
+> Implementada y desplegada en el repo `gastos-firebase-functions`
+> (`processWhatsAppQueue` + `twilioWebhook`). Soporta texto, imagen
+> (Anthropic Vision) y audio (Whisper), multi-cuenta, comandos de bot y
+> `learning_log`. Ver **[`WHATSAPP_FLOW.md`](./WHATSAPP_FLOW.md)** §4.
+> Lo de abajo es el plan original de migración (referencia histórica).
+
+**Next Steps (histórico):**
 
 1. **Initialize Firebase Functions**
    ```bash
