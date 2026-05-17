@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { isExtractionError } from '@gastos/expense-ai';
 import { AnthropicService } from '../anthropic/anthropic.service';
 import { QuotaService } from '../ai-usage/quota.service';
 
@@ -20,6 +21,11 @@ export class VoiceService {
     private readonly quotaService: QuotaService,
   ) {}
 
+  /**
+   * Extrae un gasto desde la transcripción de voz. Prompt + parsing del
+   * paquete compartido `@gastos/expense-ai` (homologado con WhatsApp),
+   * tier `primary`. Mapea el canónico ES a `ExpenseData` (frontend intacto).
+   */
   async extractExpenseData(
     transcript: string,
     userId?: string,
@@ -27,60 +33,32 @@ export class VoiceService {
     const today = new Date().toLocaleDateString('en-CA', {
       timeZone: 'America/Lima',
     });
-    const prompt = `Eres un asistente que extrae información de gastos desde texto hablado en español.
-Fecha actual: ${today}
-
-Categorías válidas: alimentacion, transporte, entretenimiento, salud, servicios, compras, educacion, vivienda, otros
-
-Métodos de pago válidos: efectivo, tarjeta_debito, tarjeta_credito, transferencia, yape, plin, otros
-
-Monedas válidas: PEN (soles), USD (dólares)
-
-Texto del usuario: "${transcript}"
-
-Extrae la siguiente información y devuélvela en formato JSON:
-{
-  "monto": número (sin símbolos),
-  "moneda": "PEN" o "USD",
-  "categoria": una de las categorías válidas,
-  "subcategoria": si se menciona (opcional), siempre guiate de lo que deja en el mensaje,
-  "descripcion": descripción del gasto,
-  "metodoPago": uno de los métodos válidos (opcional),
-  "fecha": fecha en formato YYYY-MM-DD si se menciona (opcional, por defecto usa la fecha actual: ${today}),
-  "confidence": número entre 0 y 1 indicando tu confianza en la extracción
-}
-
-Reglas:
-- Si no se menciona la moneda, asume PEN
-- Si el monto tiene decimales, úsalos
-- La descripción debe ser clara y concisa
-- Si falta información crítica (monto o categoría), pon confidence bajo (< 0.6)
-- Infiere la categoría del contexto si no se menciona explícitamente
-- Para métodos de pago peruanos comunes: "yape", "plin", "transferencia"
-
-Responde SOLO con el JSON, sin texto adicional.`;
 
     if (userId) {
       await this.quotaService.assertWithinQuota(userId, {
         feature: 'voice_expense',
       });
     }
-    const response = await this.anthropicService.sendMessage(prompt, [], undefined, {
-      userId,
-      scope: 'user',
-      feature: 'voice_expense',
-    });
 
-    try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const expenseData = JSON.parse(jsonMatch[0]);
-        return expenseData;
-      }
-    } catch (error) {
-      throw new Error('Error parsing AI response');
+    const result = await this.anthropicService.extractExpenseFromText(
+      transcript,
+      today,
+      { userId, scope: 'user', feature: 'voice_expense' },
+    );
+
+    if (isExtractionError(result)) {
+      throw new Error(result.error);
     }
 
-    throw new Error('No valid expense data extracted');
+    return {
+      monto: result.monto,
+      moneda: result.moneda,
+      categoria: result.categoria,
+      subcategoria: result.subcategoria ?? undefined,
+      descripcion: result.descripcion,
+      metodoPago: result.metodoPago ?? undefined,
+      fecha: result.fecha ?? today,
+      confidence: result.confianza,
+    };
   }
 }

@@ -59,6 +59,16 @@ class EnvironmentVariables {
   @IsOptional()
   ANTHROPIC_ANALYTICS_MODEL: string = 'claude-sonnet-4-6';
 
+  // Tiers homologados con gastos-firebase-functions (@gastos/expense-ai).
+  // Opcionales: si faltan, el paquete usa sus defaults.
+  @IsString()
+  @IsOptional()
+  ANTHROPIC_MODEL_PRIMARY: string = 'claude-sonnet-4-6';
+
+  @IsString()
+  @IsOptional()
+  ANTHROPIC_MODEL_HELPER: string = 'claude-haiku-4-5';
+
   // OpenAI (opcional — solo para ilustración IA del roast)
   @IsString()
   @IsOptional()

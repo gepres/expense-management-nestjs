@@ -5,7 +5,18 @@ import {
   CHAT_SYSTEM_PROMPT,
   buildChatPromptWithContext,
 } from './prompts/chat.prompt';
-import { RECEIPT_EXTRACTION_PROMPT } from './prompts/receipt-extraction.prompt';
+import {
+  modelParams,
+  buildReceiptExtractionPrompt,
+  buildVoiceExpensePrompt,
+  parseReceipt,
+  parseVoice,
+  isExtractionError,
+  type ModelEnv,
+  type ReceiptExtraction,
+  type VoiceExtraction,
+  type ExtractionError,
+} from '@gastos/expense-ai';
 import { UsageService } from '../ai-usage/usage.service';
 import { UsageContext } from '../ai-usage/interfaces/ai-usage.interface';
 
@@ -81,6 +92,24 @@ export class AnthropicService {
   }
 
   /**
+   * Env de modelos homologado con functions (`@gastos/expense-ai`).
+   * Mismas variables que el repo de WhatsApp; si faltan, el paquete usa
+   * sus defaults (primary `claude-sonnet-4-6`).
+   */
+  private modelEnv(): ModelEnv {
+    return {
+      ANTHROPIC_MODEL_PRIMARY: process.env.ANTHROPIC_MODEL_PRIMARY,
+      ANTHROPIC_MODEL_HELPER: process.env.ANTHROPIC_MODEL_HELPER,
+      OPENAI_MODEL_TRANSCRIBE: process.env.OPENAI_MODEL_TRANSCRIBE,
+    };
+  }
+
+  /** Modelo del tier primary (vision + parseo principal), env-tiered. */
+  private primaryModel(): string {
+    return modelParams('primary', this.modelEnv()).model;
+  }
+
+  /**
    * Registra el consumo de una llamada (best-effort, no bloquea).
    * `usageCtx` lo provee el call site; si falta, scope `app` (no cuenta cuota).
    */
@@ -146,6 +175,14 @@ export class AnthropicService {
     }
   }
 
+  /**
+   * OCR de comprobante. Prompt + parsing del paquete compartido
+   * `@gastos/expense-ai` (homologado con WhatsApp), modelo tier `primary`
+   * (env-tiered → arregla la deprecación del modelo hardcodeado).
+   *
+   * Devuelve la forma LEGACY en inglés que ya consumen receipts.controller
+   * y el frontend (mapeo en la frontera; frontend intacto).
+   */
   async extractReceiptData(
     imageBase64: string,
     mimeType: string = 'image/jpeg',
@@ -153,9 +190,10 @@ export class AnthropicService {
   ): Promise<any> {
     try {
       this.logger.log('Extracting receipt data with Claude Vision');
+      const model = this.primaryModel();
 
       const response = await this.client.messages.create({
-        model: this.model,
+        model,
         max_tokens: 1024,
         messages: [
           {
@@ -171,45 +209,83 @@ export class AnthropicService {
               },
               {
                 type: 'text',
-                text: RECEIPT_EXTRACTION_PROMPT,
+                text: buildReceiptExtractionPrompt(),
               },
             ],
           },
         ],
       });
 
-      this.trackUsage(this.model, response.usage, usageCtx, 'receipt_ocr');
+      this.trackUsage(model, response.usage, usageCtx, 'receipt_ocr');
 
       const content = response.content[0];
-      if (content.type === 'text') {
-        this.logger.log('Receipt data extracted successfully');
-
-        try {
-          // Intentar parsear la respuesta como JSON
-          const jsonMatch = content.text.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            const extractedData = JSON.parse(jsonMatch[0]);
-            this.logger.log(
-              `Extraction confidence: ${extractedData.confidence}%`,
-            );
-            return extractedData;
-          }
-
-          throw new Error('No JSON found in response');
-        } catch (parseError) {
-          this.logger.error('Failed to parse Claude response as JSON', {
-            response: content.text,
-            error: parseError,
-          });
-          throw new Error('Failed to parse receipt data');
-        }
+      if (content.type !== 'text') {
+        throw new Error('Unexpected response type from Anthropic');
       }
 
-      throw new Error('Unexpected response type from Anthropic');
+      const parsed: ReceiptExtraction | ExtractionError | null = parseReceipt(
+        content.text,
+      );
+      if (!parsed) throw new Error('Failed to parse receipt data');
+      if (isExtractionError(parsed)) {
+        // El modelo dijo que no es un comprobante válido.
+        this.logger.warn(`Receipt not extractable: ${parsed.error}`);
+        return null;
+      }
+
+      this.logger.log(`Extraction confidence: ${parsed.confianza}%`);
+
+      // Canónico (ES) → forma legacy (EN) que ya espera el controller/web.
+      return {
+        amount: parsed.monto,
+        currency: parsed.moneda,
+        date: parsed.fecha,
+        time: parsed.hora,
+        paymentMethod: parsed.metodoPago,
+        merchant: parsed.comercio,
+        referenceNumber: parsed.numeroOperacion,
+        category: parsed.categoria,
+        subcategory: parsed.subcategoria,
+        description: parsed.descripcion,
+        confidence: parsed.confianza,
+      };
     } catch (error) {
       this.logger.error('Error extracting receipt data', error);
       throw error;
     }
+  }
+
+  /**
+   * Extrae un gasto desde TEXTO (voz transcrita / mensaje). Prompt +
+   * parsing del paquete compartido, tier `primary`. Devuelve el canónico
+   * ES (`VoiceExtraction`) o `ExtractionError`; el caller mapea.
+   */
+  async extractExpenseFromText(
+    transcript: string,
+    todayISO: string,
+    usageCtx?: Partial<UsageContext>,
+  ): Promise<VoiceExtraction | ExtractionError> {
+    const model = this.primaryModel();
+    const response = await this.client.messages.create({
+      model,
+      max_tokens: 1024,
+      messages: [
+        {
+          role: 'user',
+          content: buildVoiceExpensePrompt(transcript, todayISO),
+        },
+      ],
+    });
+
+    this.trackUsage(model, response.usage, usageCtx, 'voice_expense');
+
+    const content = response.content[0];
+    if (content.type !== 'text') {
+      throw new Error('Unexpected response type from Anthropic');
+    }
+    const parsed = parseVoice(content.text);
+    if (!parsed) throw new Error('No valid expense data extracted');
+    return parsed;
   }
 
   async categorizeExpense(
