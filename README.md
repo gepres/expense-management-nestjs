@@ -126,7 +126,7 @@ src/
 │   ├── programados/              # ⏰ Gastos y transferencias recurrentes (cron)
 │   ├── notificaciones/           # Alertas in-app generadas por el cron
 │   ├── shortcuts/                # Atajos de gasto rápido
-│   ├── voice/                    # Procesamiento de gastos por voz
+│   ├── voice/                    # Voz → gasto: audio (Whisper server-side) o texto
 │   ├── shopping-lists/           # Listas de compra
 │   ├── shared/                   # Grupos de gastos compartidos
 │   └── whatsapp/                 # Webhook (productor) + link/unlink + legacy
