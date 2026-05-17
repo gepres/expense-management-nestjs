@@ -53,7 +53,11 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
-  ANTHROPIC_MODEL: string = 'claude-sonnet-4-20250514';
+  ANTHROPIC_MODEL: string = 'claude-sonnet-4-6';
+
+  @IsString()
+  @IsOptional()
+  ANTHROPIC_ANALYTICS_MODEL: string = 'claude-sonnet-4-6';
 
   // Cloudinary
   @IsString()

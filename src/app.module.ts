@@ -29,6 +29,7 @@ import { CashMovementsModule } from './modules/cash-movements/cash-movements.mod
 import { PresupuestosModule } from './modules/presupuestos/presupuestos.module';
 import { ProgramadosModule } from './modules/programados/programados.module';
 import { NotificacionesModule } from './modules/notificaciones/notificaciones.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 
 @Module({
@@ -77,6 +78,7 @@ import { NotificacionesModule } from './modules/notificaciones/notificaciones.mo
     PresupuestosModule,
     ProgramadosModule,
     NotificacionesModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

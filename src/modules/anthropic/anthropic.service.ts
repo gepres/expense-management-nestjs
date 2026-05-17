@@ -7,6 +7,27 @@ import {
 } from './prompts/chat.prompt';
 import { RECEIPT_EXTRACTION_PROMPT } from './prompts/receipt-extraction.prompt';
 
+/**
+ * Resultado estructurado del análisis de métricas (endpoint PRO
+ * `/api/analytics/ai-insights`). El modelo devuelve JSON estricto.
+ */
+export interface MetricsAiResult {
+  /** Resumen narrativo breve (2-3 frases) del estado financiero del periodo. */
+  resumen: string;
+  /** Recomendaciones accionables priorizadas. */
+  recomendaciones: string[];
+  /** Insights/observaciones clave sobre patrones de gasto. */
+  insights: string[];
+  /** Anomalías interpretadas por la IA (complementan los outliers 2σ locales). */
+  anomalias: Array<{
+    titulo: string;
+    detalle: string;
+    severidad: 'baja' | 'media' | 'alta';
+  }>;
+  /** Ahorro mensual estimado si se aplican las recomendaciones (en la moneda del periodo). */
+  ahorroEstimado?: number;
+}
+
 @Injectable()
 export class AnthropicService {
   private readonly logger = new Logger(AnthropicService.name);
@@ -282,6 +303,79 @@ Formatea tu respuesta en secciones claras.`;
       throw new Error('Unexpected response type from Anthropic');
     } catch (error) {
       this.logger.error('Error analyzing expenses', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Análisis estructurado de métricas para el módulo PRO de métricas.
+   * Recibe el `summary` ya computado por el backend (KPIs, categorías,
+   * tendencias, outliers) y devuelve JSON estricto. Usa el modelo de
+   * analytics configurable (`ANTHROPIC_ANALYTICS_MODEL`).
+   */
+  async analyzeMetrics(
+    summary: unknown,
+    focus?: string,
+  ): Promise<MetricsAiResult> {
+    const analyticsModel =
+      this.configService.get<string>('anthropic.analyticsModel') || this.model;
+
+    const focoLinea = focus
+      ? `\nEnfócate especialmente en: "${focus}".`
+      : '';
+
+    const prompt = `Eres un analista financiero personal. Analiza el siguiente resumen YA CALCULADO de gastos del usuario (montos en su moneda, no conviertas).${focoLinea}
+
+Resumen de métricas (JSON):
+${JSON.stringify(summary, null, 2)}
+
+Responde ÚNICAMENTE con un objeto JSON válido (sin markdown, sin texto extra) con esta forma exacta:
+{
+  "resumen": "2-3 frases claras sobre el estado financiero del periodo",
+  "recomendaciones": ["acción concreta 1", "acción concreta 2", "..."],
+  "insights": ["observación de patrón 1", "..."],
+  "anomalias": [{"titulo": "...", "detalle": "...", "severidad": "baja|media|alta"}],
+  "ahorroEstimado": number
+}
+Reglas: máximo 5 recomendaciones, 4 insights y 4 anomalías. Sé específico con cifras del resumen. "ahorroEstimado" es un número (0 si no aplica). Español, tono directo y motivador.`;
+
+    try {
+      const response = await this.client.messages.create({
+        model: analyticsModel,
+        max_tokens: 2048,
+        system: CHAT_SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: prompt }],
+      });
+
+      const content = response.content[0];
+      if (content.type !== 'text') {
+        throw new Error('Unexpected response type from Anthropic');
+      }
+
+      const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON found in metrics analysis response');
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]) as Partial<MetricsAiResult>;
+
+      // Normalización defensiva: el modelo podría omitir campos.
+      return {
+        resumen: parsed.resumen ?? '',
+        recomendaciones: Array.isArray(parsed.recomendaciones)
+          ? parsed.recomendaciones
+          : [],
+        insights: Array.isArray(parsed.insights) ? parsed.insights : [],
+        anomalias: Array.isArray(parsed.anomalias)
+          ? parsed.anomalias.filter((a) => a && a.titulo)
+          : [],
+        ahorroEstimado:
+          typeof parsed.ahorroEstimado === 'number'
+            ? parsed.ahorroEstimado
+            : undefined,
+      };
+    } catch (error) {
+      this.logger.error('Error analyzing metrics', error);
       throw error;
     }
   }
