@@ -9,6 +9,7 @@ import { AnthropicService } from '../anthropic/anthropic.service';
 import { AccountDocument } from '../accounts/interfaces/account.interface';
 import { PresupuestosService } from '../presupuestos/presupuestos.service';
 import { BucketAlert } from '../presupuestos/interfaces/presupuesto.interface';
+import { InferenceService } from '../inference/inference.service';
 import { GetExpensesFilterDto } from './dto/get-expenses-filter.dto';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
@@ -39,6 +40,7 @@ export class ExpensesService {
     private readonly firebaseService: FirebaseService,
     private readonly anthropicService: AnthropicService,
     private readonly presupuestosService: PresupuestosService,
+    private readonly inferenceService: InferenceService,
   ) {}
 
   /**
@@ -411,6 +413,20 @@ export class ExpensesService {
       this.logger.warn(
         `Bucket "${dto.categoria}" sobregirado: gastado=${bucketAlert.gastado} > limite=${bucketAlert.limite} (account=${dto.accountId})`,
       );
+    }
+
+    // Bitácora de aprendizaje (Fase 3): solo si el gasto vino de IA
+    // (voz/imagen). Best-effort fire-and-forget — no bloquea ni afecta
+    // la respuesta del guardado.
+    if (dto.origenIA) {
+      const descripcion = dto.descripcionOrigen ?? dto.descripcion ?? '';
+      void this.inferenceService.recordOutcome(userId, {
+        descripcion,
+        categoriaFinal: dto.categoria,
+        categoriaSugerida: dto.categoriaSugerida,
+        channel: dto.origenIA === 'voz' ? 'audio' : 'image',
+        expenseId: result.id,
+      });
     }
 
     return { id: result.id, ...result.data, fecha: dto.fecha, bucketAlert };

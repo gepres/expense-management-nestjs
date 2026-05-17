@@ -121,4 +121,33 @@ export class CreateExpenseDto {
   @IsString()
   @IsIn(REIMBURSEMENT_STATUSES as unknown as string[])
   reimbursementStatus?: string;
+
+  // --- Bitácora de aprendizaje (learning_log) — opcional ---
+  // Solo lo envía el frontend cuando el gasto se originó por voz/imagen.
+  // Si `origenIA` está presente, el backend registra (best-effort) una
+  // decisión `inference` o, si el usuario cambió la categoría sugerida,
+  // una `user_correction` (homologado con WhatsApp). Manual = ausente.
+
+  @ApiPropertyOptional({
+    description: 'Origen IA del gasto (para learning_log)',
+    enum: ['voz', 'imagen'],
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['voz', 'imagen'])
+  origenIA?: 'voz' | 'imagen';
+
+  @ApiPropertyOptional({
+    description: 'Categoría que sugirió la IA (para detectar corrección)',
+  })
+  @IsOptional()
+  @IsString()
+  categoriaSugerida?: string;
+
+  @ApiPropertyOptional({
+    description: 'Texto base que se clasificó (descripción / desc+comercio)',
+  })
+  @IsOptional()
+  @IsString()
+  descripcionOrigen?: string;
 }

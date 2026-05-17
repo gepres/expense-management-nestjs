@@ -50,7 +50,8 @@ Toda la documentación detallada vive en [`docs/`](./docs). Punto de entrada: [`
 | Framework | NestJS 11 (Express) |
 | Lenguaje | TypeScript 5.7 |
 | Auth + BD + Storage | Firebase Admin SDK 13 (Auth, Firestore, Storage) |
-| IA | Anthropic Claude (`@anthropic-ai/sdk`) |
+| IA | Anthropic Claude (`@anthropic-ai/sdk`) + OpenAI (Whisper STT, ilustración) |
+| IA compartida | `@gastos/expense-ai` (vendoreada) — modelos, prompts, parsers, clasificador y schema `learning_log`; single source of truth con el bot de WhatsApp |
 | Imágenes | Sharp + Cloudinary |
 | Excel | ExcelJS + xlsx |
 | Cron | `@nestjs/schedule` (local) + GitHub Actions (producción serverless) |
@@ -114,7 +115,8 @@ src/
 │   ├── payment-methods/          # Métodos de pago
 │   ├── currencies/               # Monedas
 │   ├── expenses/                 # CRUD de gastos, parseo NL, export JSON/Excel
-│   ├── receipts/                 # Escaneo OCR con Claude Vision
+│   ├── receipts/                 # Escaneo OCR Claude Vision (auth; clasifica vs taxonomía del usuario)
+│   ├── inference/                # Clasificador compartido (@gastos/expense-ai) + learning_log
 │   ├── chat/                     # Conversaciones persistentes con IA
 │   ├── import/                   # Importación Excel/JSON (validate/analyze/upload)
 │   ├── accounts/                 # Multi-cuenta (banco/ahorro/billetera/tarjeta)
