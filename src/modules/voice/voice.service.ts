@@ -3,6 +3,7 @@ import { isExtractionError } from '@gastos/expense-ai';
 import { AnthropicService } from '../anthropic/anthropic.service';
 import { QuotaService } from '../ai-usage/quota.service';
 import { InferenceService } from '../inference/inference.service';
+import { OpenAiTranscriptionService } from '../openai/openai-transcription.service';
 
 export interface ExpenseData {
   monto: number;
@@ -21,28 +22,70 @@ export class VoiceService {
     private readonly anthropicService: AnthropicService,
     private readonly quotaService: QuotaService,
     private readonly inferenceService: InferenceService,
+    private readonly transcriptionService: OpenAiTranscriptionService,
   ) {}
 
   /**
-   * Extrae un gasto desde la transcripción de voz. Prompt + parsing del
-   * paquete compartido `@gastos/expense-ai` (homologado con WhatsApp),
-   * tier `primary`. Luego refina categoría/subcategoría/método contra la
-   * taxonomía DEL usuario (mismo clasificador que el bot de WhatsApp).
-   * Mapea el canónico ES a `ExpenseData` (frontend intacto).
+   * Extrae un gasto desde una transcripción ya hecha (texto). Mantiene el
+   * endpoint `/voice/process-expense` (compat / fallback de texto).
    */
   async extractExpenseData(
+    transcript: string,
+    userId?: string,
+  ): Promise<ExpenseData> {
+    if (userId) {
+      await this.quotaService.assertWithinQuota(userId, {
+        feature: 'voice_expense',
+      });
+    }
+    return this.buildExpenseFromTranscript(transcript, userId);
+  }
+
+  /**
+   * Pipeline completo de audio (homologado con WhatsApp `processAudioMessage`):
+   * Whisper server-side → parseo canónico → clasificación contra la
+   * taxonomía DEL usuario. El navegador ya no transcribe (adiós Web Speech
+   * API / error `network`). Endpoint autenticado → `userId` siempre presente.
+   */
+  async processAudioExpense(
+    audio: Buffer,
+    filename: string,
+    userId: string,
+  ): Promise<ExpenseData> {
+    // Un solo chequeo de cuota cubre la operación de voz completa
+    // (transcripción + parseo); ambos consumos se registran scope:user.
+    await this.quotaService.assertWithinQuota(userId, {
+      feature: 'voice_expense',
+    });
+
+    const transcript = await this.transcriptionService.transcribe(
+      audio,
+      filename,
+      { userId, scope: 'user', feature: 'voice_transcribe' },
+    );
+
+    const clean = transcript?.trim();
+    if (!clean) {
+      throw new Error('No se detectó voz en el audio. Intenta de nuevo.');
+    }
+
+    return this.buildExpenseFromTranscript(clean, userId);
+  }
+
+  /**
+   * Transcripción → `ExpenseData`. Prompt + parsing del paquete compartido
+   * `@gastos/expense-ai` (tier `primary`); luego refina
+   * categoría/subcategoría/método contra la taxonomía del usuario (mismo
+   * clasificador que el bot de WhatsApp). Mapea el canónico ES a
+   * `ExpenseData` (frontend intacto). NO chequea cuota (lo hace el caller).
+   */
+  private async buildExpenseFromTranscript(
     transcript: string,
     userId?: string,
   ): Promise<ExpenseData> {
     const today = new Date().toLocaleDateString('en-CA', {
       timeZone: 'America/Lima',
     });
-
-    if (userId) {
-      await this.quotaService.assertWithinQuota(userId, {
-        feature: 'voice_expense',
-      });
-    }
 
     const result = await this.anthropicService.extractExpenseFromText(
       transcript,

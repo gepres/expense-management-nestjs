@@ -252,7 +252,10 @@ Tracking/cuotas configurables por env `AI_PRICE_*` y `AI_QUOTA_*` (ver
 
 | Método | Ruta | Auth | Descripción |
 |---|---|:---:|---|
-| POST | `/voice/process-expense` | 🔒 | Procesar un gasto desde audio/voz |
+| POST | `/voice/process-expense` | 🔒 | Texto transcrito → gasto (compat/fallback). Body `{ transcript }` |
+| POST | `/voice/process-audio` | 🔒 | **Audio (multipart `audio`) → Whisper server-side → gasto clasificado**. Mismo pipeline que WhatsApp (transcripción → parseo canónico → `InferenceService`). Consume cuota IA `scope:user` (transcripción + parseo) |
+
+> El dictado web graba con `MediaRecorder` y sube el audio (ya no usa la Web Speech API del navegador). Requiere `OPENAI_API_KEY` (modelo `OPENAI_MODEL_TRANSCRIBE`, default `gpt-4o-mini-transcribe`).
 
 ## Shopping Lists · `/api/shopping-lists`
 
