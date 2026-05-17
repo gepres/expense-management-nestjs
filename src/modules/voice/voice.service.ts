@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { isExtractionError } from '@gastos/expense-ai';
 import { AnthropicService } from '../anthropic/anthropic.service';
 import { QuotaService } from '../ai-usage/quota.service';
+import { InferenceService } from '../inference/inference.service';
 
 export interface ExpenseData {
   monto: number;
@@ -19,12 +20,15 @@ export class VoiceService {
   constructor(
     private readonly anthropicService: AnthropicService,
     private readonly quotaService: QuotaService,
+    private readonly inferenceService: InferenceService,
   ) {}
 
   /**
    * Extrae un gasto desde la transcripción de voz. Prompt + parsing del
    * paquete compartido `@gastos/expense-ai` (homologado con WhatsApp),
-   * tier `primary`. Mapea el canónico ES a `ExpenseData` (frontend intacto).
+   * tier `primary`. Luego refina categoría/subcategoría/método contra la
+   * taxonomía DEL usuario (mismo clasificador que el bot de WhatsApp).
+   * Mapea el canónico ES a `ExpenseData` (frontend intacto).
    */
   async extractExpenseData(
     transcript: string,
@@ -50,13 +54,49 @@ export class VoiceService {
       throw new Error(result.error);
     }
 
+    // Sin userId (no debería pasar vía controller autenticado) → mapeo
+    // crudo, comportamiento previo.
+    if (!userId) {
+      return {
+        monto: result.monto,
+        moneda: result.moneda,
+        categoria: result.categoria,
+        subcategoria: result.subcategoria ?? undefined,
+        descripcion: result.descripcion,
+        metodoPago: result.metodoPago ?? undefined,
+        fecha: result.fecha ?? today,
+        confidence: result.confianza,
+      };
+    }
+
+    // Refina contra la taxonomía del usuario (homologado con WhatsApp).
+    const [classification, payment] = await Promise.all([
+      this.inferenceService.classify(
+        userId,
+        result.descripcion,
+        result.categoria,
+      ),
+      this.inferenceService.resolvePaymentMethod(
+        userId,
+        result.descripcion,
+        result.metodoPago ?? undefined,
+      ),
+    ]);
+
+    // `sin_clasificar` → se conserva el hint del LLM (nunca peor que hoy).
+    const categoria = classification.needsClassification
+      ? result.categoria
+      : classification.categoria;
+    const subcategoria =
+      classification.subcategoria ?? result.subcategoria ?? undefined;
+
     return {
       monto: result.monto,
       moneda: result.moneda,
-      categoria: result.categoria,
-      subcategoria: result.subcategoria ?? undefined,
+      categoria,
+      subcategoria,
       descripcion: result.descripcion,
-      metodoPago: result.metodoPago ?? undefined,
+      metodoPago: payment.metodoPago,
       fecha: result.fecha ?? today,
       confidence: result.confianza,
     };

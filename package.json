@@ -21,8 +21,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@gastos/expense-ai": "file:vendor/gastos-expense-ai-0.1.0.tgz",
     "@anthropic-ai/sdk": "^0.69.0",
+    "@gastos/expense-ai": "file:vendor/gastos-expense-ai-0.2.0.tgz",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",

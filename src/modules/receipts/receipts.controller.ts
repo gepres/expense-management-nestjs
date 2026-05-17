@@ -5,6 +5,7 @@ import {
   Delete,
   Param,
   Query,
+  UseGuards,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
@@ -18,14 +19,20 @@ import {
   ApiConsumes,
   ApiBody,
   ApiQuery,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { ReceiptsService } from './receipts.service';
 import { ImageProcessorService } from './image-processor.service';
 import { AnthropicService } from '../anthropic/anthropic.service';
-import { CategoryMatcherService } from '../../utils/category-matcher.service';
+import { InferenceService } from '../inference/inference.service';
+import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { FirebaseUser } from '../../common/interfaces/firebase-user.interface';
 
 @ApiTags('Receipts')
+@ApiBearerAuth('firebase-auth')
 @Controller('receipts')
+@UseGuards(FirebaseAuthGuard)
 export class ReceiptsController {
   private readonly logger = new Logger(ReceiptsController.name);
 
@@ -33,7 +40,7 @@ export class ReceiptsController {
     private readonly receiptsService: ReceiptsService,
     private readonly imageProcessor: ImageProcessorService,
     private readonly anthropicService: AnthropicService,
-    private readonly categoryMatcher: CategoryMatcherService,
+    private readonly inferenceService: InferenceService,
   ) {}
 
   @Post('scan')
@@ -80,7 +87,10 @@ export class ReceiptsController {
   })
   @ApiResponse({ status: 400, description: 'Archivo inválido' })
   @UseInterceptors(FileInterceptor('image'))
-  async scanReceipt(@UploadedFile() file: Express.Multer.File) {
+  async scanReceipt(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: FirebaseUser,
+  ) {
     if (!file) {
       throw new BadRequestException('No se proporcionó ninguna imagen');
     }
@@ -109,30 +119,37 @@ export class ReceiptsController {
         extractedData = await this.anthropicService.extractReceiptData(
           base64,
           'image/jpeg',
-          { scope: 'app', feature: 'receipt_ocr' },
+          { userId: user.uid, scope: 'user', feature: 'receipt_ocr' },
         );
         this.logger.log(
           `Datos extraídos con confianza: ${extractedData.confidence}%`,
         );
 
-        // 3.1. Buscar subcategoría basada en keywords
+        // 3.1. Clasificar contra la taxonomía DEL usuario (mismo
+        // clasificador compartido que WhatsApp). Descripción + comercio
+        // para que las suggestions_ideas del usuario puedan matchear.
         if (extractedData) {
-          const matchResult = this.categoryMatcher.findSubcategory(
-            extractedData.description,
-            extractedData.merchant,
+          const text = `${extractedData.description ?? ''} ${
+            extractedData.merchant ?? ''
+          }`.trim();
+          const classification = await this.inferenceService.classify(
+            user.uid,
+            text,
+            extractedData.category,
           );
 
-          if (matchResult) {
+          if (!classification.needsClassification) {
             this.logger.log(
-              `Subcategoría encontrada: ${matchResult.category} > ${matchResult.subcategory}`,
+              `Clasificado: ${classification.categoria}` +
+                (classification.subcategoria
+                  ? ` > ${classification.subcategoria}`
+                  : ''),
             );
-
-            // Actualizar categoría y agregar subcategoría
-            extractedData.category = matchResult.category;
-            extractedData.subcategory = matchResult.subcategory;
+            extractedData.category = classification.categoria;
+            extractedData.subcategory = classification.subcategoria;
           } else {
             this.logger.log(
-              'No se encontró subcategoría específica, usando categoría general de IA',
+              'Sin match en la taxonomía del usuario, se conserva la categoría de IA',
             );
           }
 

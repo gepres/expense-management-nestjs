@@ -88,6 +88,11 @@ Inventario completo de endpoints. Complementa la documentación interactiva de *
 | GET | `/receipts/:id` | 🔒 | Obtener comprobante |
 | DELETE | `/receipts/:id` | 🔒 | Eliminar comprobante (doc + imagen) |
 
+`POST /receipts/scan` requiere token Firebase. Tras el OCR, `categoria`/
+`subcategoria` se refinan contra la **taxonomía del usuario** (clasificador
+compartido `@gastos/expense-ai`, homologado con WhatsApp); `data.category`
+es el **id de categoría del usuario**. El OCR consume cuota IA `scope:user`.
+
 Detalle de pruebas y respuestas: [RECEIPTS_TESTING.md](./RECEIPTS_TESTING.md).
 
 ## Chat · `/api/chat`

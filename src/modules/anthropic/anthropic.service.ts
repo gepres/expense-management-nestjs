@@ -109,6 +109,11 @@ export class AnthropicService {
     return modelParams('primary', this.modelEnv()).model;
   }
 
+  /** Modelo del tier helper (fallbacks acotados, p.ej. taxonomía). */
+  private helperModel(): string {
+    return modelParams('helper', this.modelEnv()).model;
+  }
+
   /**
    * Registra el consumo de una llamada (best-effort, no bloquea).
    * `usageCtx` lo provee el call site; si falta, scope `app` (no cuenta cuota).
@@ -330,6 +335,51 @@ Responde solo con el nombre exacto de la categoría.`;
     } catch (error) {
       this.logger.error('Error categorizing expense', error);
       throw error;
+    }
+  }
+
+  /**
+   * Clasifica una descripción contra las categorías del usuario (paso 5b
+   * del flujo de inferencia compartido `@gastos/expense-ai`). Homologado
+   * con functions: mismo prompt, tier `helper`. Devuelve un candidato
+   * EXACTO de la lista o null. NUNCA lanza (best-effort).
+   */
+  async classifyAgainstTaxonomy(
+    description: string,
+    candidates: string[],
+    usageCtx?: Partial<UsageContext>,
+  ): Promise<string | null> {
+    if (candidates.length === 0) return null;
+    try {
+      const prompt =
+        'Clasifica el gasto en UNA de las categorías del usuario.\n' +
+        `Descripción: "${description}"\n` +
+        `Categorías: ${JSON.stringify(candidates)}\n\n` +
+        'Responde SOLO con JSON {"categoria": "<categoría EXACTA de ' +
+        'la lista>"} o {"categoria": null} si ninguna corresponde con ' +
+        'confianza razonable. SOLO el JSON.';
+
+      const model = this.helperModel();
+      const response = await this.client.messages.create({
+        model,
+        max_tokens: 128,
+        messages: [{ role: 'user', content: prompt }],
+      });
+
+      this.trackUsage(model, response.usage, usageCtx, 'category_classify');
+
+      const content = response.content[0];
+      if (content.type !== 'text') return null;
+      const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return null;
+      const parsed = JSON.parse(jsonMatch[0]) as { categoria?: unknown };
+      if (!parsed.categoria || typeof parsed.categoria !== 'string') {
+        return null;
+      }
+      return candidates.includes(parsed.categoria) ? parsed.categoria : null;
+    } catch (error) {
+      this.logger.error('Error classifying against taxonomy', error);
+      return null;
     }
   }
 
