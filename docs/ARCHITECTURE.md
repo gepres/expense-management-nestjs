@@ -108,6 +108,9 @@ receipts/                      # documentos de comprobantes
 shopping-lists/                # listas de compra
 shared_groups/                 # grupos de gastos compartidos
 whatsapp_queue/                # cola productor/consumidor de WhatsApp (ver WHATSAPP_FLOW.md)
+aiUsageEvents/                 # 1 evento por llamada IA (auditoría; write solo Admin SDK)
+aiUsageMonthly/{uid}_{YYYY-MM} # rollup mensual de consumo IA por usuario (cuota)
+aiUsageAppMonthly/{YYYY-MM}    # rollup mensual del consumo IA autogenerado (scope app)
 ```
 
 ### Timestamps
@@ -219,7 +222,46 @@ Detalle end-to-end, esquema de la cola, ciclo de vida y caveats de seguridad: **
 
 ---
 
-## 7. Convenciones de código
+## 7. Subsistema de consumo IA (tracking + cuotas)
+
+Módulo global `ai-usage`. Atraviesa todos los call sites de IA.
+
+### Tracking (Fase 1)
+
+`UsageService.record()` se invoca tras cada llamada a Anthropic/OpenAI con
+un `usageCtx = { userId, scope, feature }` **explícito** del call site:
+
+- `scope: 'user'` → consumo iniciado por el usuario (asistente, métricas
+  IA, voz, y todo el bot de WhatsApp). Cuenta para cuota.
+- `scope: 'app'` → autogenerado (autocategorización, sugerencias de
+  import, OCR sin auth, parseos internos). Solo se registra.
+
+Escribe (Admin SDK, best-effort, **nunca** rompe el flujo IA):
+`aiUsageEvents/{id}` (auditoría) + `increment` en
+`aiUsageMonthly/{uid}_{YYYY-MM}` (scope user) o `aiUsageAppMonthly/{YYYY-MM}`
+(scope app). Anthropic da tokens reales; OpenAI imágenes/Whisper → costo
+estimado por unidad (env `AI_PRICE_*`). Mes en **UTC**.
+
+### Enforcement (Fase 2)
+
+`QuotaService.assertWithinQuota(uid, { feature, isImage? })` se llama
+**antes** de cada operación `scope:'user'` (chat, analytics
+insights/ask/roast/image, voz). Lee el rol (`users/{uid}.role`) + el
+rollup mensual (O(1), 1 doc). Si `usado >= límiteRol` → **429**
+`{ error: 'AiQuotaExceeded' | 'AiImageQuotaExceeded', message, used,
+limit, resetAt }`. `admin` = ilimitado; `scope:'app'` no se bloquea.
+Límites por env `AI_QUOTA_*`. Reset natural por la clave de mes (sin job).
+`GET /api/ai-usage/me` expone el snapshot para el medidor del cliente.
+
+El **consumidor de WhatsApp** (`gastos-firebase-functions`) replica el
+mismo cálculo (`checkQuota`, lectura del mismo doc) y, si excede, responde
+por WhatsApp y cierra el item sin reintento — best-effort (si la lectura
+falla, no bloquea). Las reglas/índices de estas colecciones viven en el
+repo frontend `gastos`. Contrato completo: `gastos/docs/ai-usage.md`.
+
+---
+
+## 8. Convenciones de código
 
 - **Path alias:** `@/` → `src/` (`import { FirebaseService } from '@/modules/firebase/firebase.service';`).
 - **DTOs obligatorios:** todo body tiene un DTO con decoradores `class-validator`; el `ValidationPipe` global valida y transforma.

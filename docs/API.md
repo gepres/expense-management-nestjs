@@ -216,6 +216,23 @@ Detalle de pruebas y respuestas: [RECEIPTS_TESTING.md](./RECEIPTS_TESTING.md).
 Modelo IA configurable: `ANTHROPIC_ANALYTICS_MODEL` (hereda `ANTHROPIC_MODEL`,
 default `claude-sonnet-4-6`). Nunca se mezclan monedas en los cálculos.
 
+> **Cuota IA**: `ai-insights`/`ai-ask`/`ai-roast`/`ai-image` (y el chat/voz)
+> validan la cuota mensual del usuario antes de llamar al modelo. Si se
+> excede responden **429** con cuerpo `{ error: "AiQuotaExceeded" |
+> "AiImageQuotaExceeded", message, used, limit, resetAt }`. `admin` y el
+> consumo `scope:"app"` no se bloquean. Ver `docs/ARCHITECTURE.md` §7 y
+> `gastos/docs/ai-usage.md`.
+
+## AI Usage (consumo IA) · `/api/ai-usage`
+
+| Método | Ruta | Auth | Descripción |
+|---|---|:---:|---|
+| GET | `/ai-usage/me` | 🔒 | Snapshot de cuota del usuario del mes: `{ mes, role, used, limit, remaining, pct, warn, blocked, imagesUsed, imagesLimit, imagesBlocked, resetAt, warnPct }`. `limit: null` = admin (ilimitado) |
+
+Tracking/cuotas configurables por env `AI_PRICE_*` y `AI_QUOTA_*` (ver
+`.env` / `docs/ARCHITECTURE.md` §7). Las colecciones `aiUsageEvents`,
+`aiUsageMonthly`, `aiUsageAppMonthly` las escribe solo el Admin SDK.
+
 ## Shortcuts · `/api/shortcuts`
 
 | Método | Ruta | Auth | Descripción |

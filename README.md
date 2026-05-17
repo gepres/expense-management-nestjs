@@ -36,6 +36,8 @@ Toda la documentación detallada vive en [`docs/`](./docs). Punto de entrada: [`
 - **Presupuestos** — sub-reservas opcionales por categoría.
 - **Programados (recurrentes)** — gastos y transferencias automáticas vía cron, timezone-aware, idempotentes.
 - **Notificaciones in-app** — alertas generadas por el cron (saldo insuficiente, ejecución fallida, error FX, etc.).
+- **Métricas PRO** — KPIs/series + análisis IA (insights, roast, ilustración OpenAI), PRO-gated.
+- **Consumo IA (tracking + cuotas)** — registra tokens por usuario/aplicativo y aplica cuota mensual por rol (429 al exceder). Ver [docs/ARCHITECTURE.md §7](./docs/ARCHITECTURE.md) y `gastos/docs/ai-usage.md`.
 - **Ingestión WhatsApp** — webhook productor/consumidor desacoplado por una cola Firestore (consumidor en repo aparte).
 - **Voz, atajos, listas de compra, grupos compartidos** — módulos complementarios.
 
