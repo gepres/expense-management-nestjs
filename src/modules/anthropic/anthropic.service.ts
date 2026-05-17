@@ -28,6 +28,28 @@ export interface MetricsAiResult {
   ahorroEstimado?: number;
 }
 
+/**
+ * "Roast" financiero sarcástico para tarjeta compartible (endpoint PRO
+ * `/api/analytics/ai-roast`). Humor amigable, español LatAm.
+ *
+ * Fase-2 (hook): un futuro proveedor de imágenes IA podría rellenar
+ * `imagenUrl` sin cambiar el resto del contrato; hoy NO se genera.
+ */
+export interface MetricsRoast {
+  /** Título tipo encabezado de meme (con emojis). */
+  titulo: string;
+  /** Índice de "desastre financiero" 0-100 (más alto = más caos, en broma). */
+  puntuacionDesastre: number;
+  /** 3-6 frases sarcásticas de una línea (con emojis). */
+  frases: string[];
+  /** Veredicto final corto y gracioso. */
+  veredicto: string;
+  /** Hashtags compartibles (sin espacios, con #). */
+  hashtags: string[];
+  /** Reservado para fase-2 (ilustración IA). Hoy siempre undefined. */
+  imagenUrl?: string;
+}
+
 @Injectable()
 export class AnthropicService {
   private readonly logger = new Logger(AnthropicService.name);
@@ -376,6 +398,82 @@ Reglas: máximo 5 recomendaciones, 4 insights y 4 anomalías. Sé específico co
       };
     } catch (error) {
       this.logger.error('Error analyzing metrics', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Genera un "roast" financiero sarcástico (para tarjeta compartible).
+   * Humor amigable: nada de insultos, ni temas sensibles; tono LatAm/Perú.
+   */
+  async roastMetrics(
+    summary: unknown,
+    tono: 'suave' | 'picante' = 'picante',
+  ): Promise<MetricsRoast> {
+    const analyticsModel =
+      this.configService.get<string>('anthropic.analyticsModel') || this.model;
+
+    const intensidad =
+      tono === 'suave'
+        ? 'Burlón pero tierno, como un amigo que te molesta con cariño.'
+        : 'Sarcástico y mordaz (sin ser cruel ni ofensivo), como un stand-up.';
+
+    const prompt = `Eres un comediante financiero. Te paso el resumen YA CALCULADO de gastos de una persona (montos en su moneda, no conviertas). Hazle un "roast" gracioso y compartible con amigos.
+
+${intensidad}
+Reglas: español de Perú/LatAm, humor familiar (sin groserías, sin insultos personales, sin temas sensibles), usa emojis, sé concreto con SUS datos (categoría top, gastos hormiga, anomalías, proyección). NO inventes cifras que no estén en el resumen.
+
+Resumen (JSON):
+${JSON.stringify(summary, null, 2)}
+
+Responde ÚNICAMENTE con JSON válido (sin markdown) con esta forma exacta:
+{
+  "titulo": "encabezado tipo meme con emojis (máx 6 palabras)",
+  "puntuacionDesastre": number,  // 0-100, en broma; alto = más caos
+  "frases": ["línea sarcástica 1 con emoji", "..."],  // entre 3 y 6
+  "veredicto": "remate final corto y gracioso",
+  "hashtags": ["#SinEspacios", "..."]  // 2 a 4
+}`;
+
+    try {
+      const response = await this.client.messages.create({
+        model: analyticsModel,
+        max_tokens: 1024,
+        system:
+          'Eres un comediante financiero peruano. Haces humor inteligente y amigable sobre hábitos de gasto. Nunca eres ofensivo ni humillante.',
+        messages: [{ role: 'user', content: prompt }],
+      });
+
+      const content = response.content[0];
+      if (content.type !== 'text') {
+        throw new Error('Unexpected response type from Anthropic');
+      }
+
+      const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON found in roast response');
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]) as Partial<MetricsRoast>;
+
+      const score = Number(parsed.puntuacionDesastre);
+      return {
+        titulo: parsed.titulo?.trim() || '🔥 Tu mes financiero 🔥',
+        puntuacionDesastre: Number.isFinite(score)
+          ? Math.max(0, Math.min(100, Math.round(score)))
+          : 50,
+        frases: Array.isArray(parsed.frases)
+          ? parsed.frases.filter((f) => typeof f === 'string' && f.trim())
+          : [],
+        veredicto: parsed.veredicto?.trim() || '',
+        hashtags: Array.isArray(parsed.hashtags)
+          ? parsed.hashtags
+              .filter((h) => typeof h === 'string' && h.trim())
+              .map((h) => (h.startsWith('#') ? h : `#${h}`))
+          : [],
+      };
+    } catch (error) {
+      this.logger.error('Error generating roast', error);
       throw error;
     }
   }

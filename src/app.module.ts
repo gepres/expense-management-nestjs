@@ -8,8 +8,10 @@ import { validate } from './config/env.validation';
 import firebaseConfig from './config/firebase.config';
 import anthropicConfig from './config/anthropic.config';
 import cloudinaryConfig from './config/cloudinary.config';
+import openaiConfig from './config/openai.config';
 import { FirebaseModule } from './modules/firebase/firebase.module';
 import { AnthropicModule } from './modules/anthropic/anthropic.module';
+import { OpenAiModule } from './modules/openai/openai.module';
 import { UsersModule } from './modules/users/users.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { ReceiptsModule } from './modules/receipts/receipts.module';
@@ -37,7 +39,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     ConfigModule.forRoot({
       isGlobal: true,
       validate,
-      load: [firebaseConfig, anthropicConfig, cloudinaryConfig],
+      load: [firebaseConfig, anthropicConfig, cloudinaryConfig, openaiConfig],
     }),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
@@ -59,6 +61,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     ]),
     FirebaseModule,
     AnthropicModule,
+    OpenAiModule,
     UsersModule,
     CategoriesModule,
     ReceiptsModule,

@@ -78,4 +78,6 @@ export interface AnalyticsSummary {
   topTags: Array<{ tag: string; total: number; count: number }>;
   /** Monedas presentes en el periodo (para que el cliente ofrezca el selector). */
   monedasDisponibles: string[];
+  /** True si el backend tiene OPENAI_API_KEY → el cliente muestra "Ilustración IA". */
+  aiImageEnabled: boolean;
 }

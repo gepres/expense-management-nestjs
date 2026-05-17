@@ -23,6 +23,7 @@ import { AnalyticsService } from './analytics.service';
 import { AnalyticsQueryDto, ExportAnalyticsDto } from './dto/analytics-query.dto';
 import { AiInsightsDto } from './dto/ai-insights.dto';
 import { AiAskDto } from './dto/ai-ask.dto';
+import { AiRoastDto } from './dto/ai-roast.dto';
 
 /**
  * Módulo de métricas PRO. TODO el controlador está detrás de `@RequirePro()`
@@ -77,6 +78,31 @@ export class AnalyticsController {
   @ApiResponse({ status: 403, description: 'Requiere cuenta PRO' })
   async aiAsk(@CurrentUser() user: FirebaseUser, @Body() dto: AiAskDto) {
     return this.analyticsService.askAi(user.uid, dto);
+  }
+
+  @Post('ai-roast')
+  @ApiOperation({
+    summary: 'Roast financiero sarcástico del periodo (PRO)',
+    description:
+      'Genera un "roast" gracioso y compartible (título, índice de desastre, frases, veredicto, hashtags) basado en las métricas del periodo.',
+  })
+  @ApiResponse({ status: 201, description: 'Roast generado' })
+  @ApiResponse({ status: 403, description: 'Requiere cuenta PRO' })
+  async aiRoast(@CurrentUser() user: FirebaseUser, @Body() dto: AiRoastDto) {
+    return this.analyticsService.getRoast(user.uid, dto);
+  }
+
+  @Post('ai-image')
+  @ApiOperation({
+    summary: 'Ilustración IA del roast (PRO, requiere OPENAI_API_KEY)',
+    description:
+      'Genera una ilustración cómica (OpenAI gpt-image-1) basada en el roast del periodo. Devuelve un data URL PNG. 400 si OPENAI_API_KEY no está configurada.',
+  })
+  @ApiResponse({ status: 201, description: 'Imagen generada (data URL)' })
+  @ApiResponse({ status: 400, description: 'Ilustración IA no configurada' })
+  @ApiResponse({ status: 403, description: 'Requiere cuenta PRO' })
+  async aiImage(@CurrentUser() user: FirebaseUser, @Body() dto: AiRoastDto) {
+    return this.analyticsService.generateRoastImage(user.uid, dto);
   }
 
   @Get('export')

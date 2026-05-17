@@ -1,15 +1,18 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import * as ExcelJS from 'exceljs';
 import { startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { ExpensesService } from '../expenses/expenses.service';
 import {
   AnthropicService,
   MetricsAiResult,
+  MetricsRoast,
 } from '../anthropic/anthropic.service';
 import { AnalyticsSummary } from './interfaces/analytics.interface';
 import { AnalyticsQueryDto, ExportAnalyticsDto } from './dto/analytics-query.dto';
 import { AiInsightsDto } from './dto/ai-insights.dto';
 import { AiAskDto } from './dto/ai-ask.dto';
+import { AiRoastDto } from './dto/ai-roast.dto';
+import { OpenAiImageService } from '../openai/openai-image.service';
 
 type RawExpense = Record<string, any>;
 
@@ -20,6 +23,7 @@ export class AnalyticsService {
   constructor(
     private readonly expensesService: ExpensesService,
     private readonly anthropicService: AnthropicService,
+    private readonly openaiImageService: OpenAiImageService,
   ) {}
 
   // ==================== SUMMARY (sin IA) ====================
@@ -141,6 +145,7 @@ export class AnalyticsService {
       topTags: this.topTags(expenses),
       monedasDisponibles:
         monedasDisponibles.length > 0 ? monedasDisponibles : [monedaSel],
+      aiImageEnabled: this.openaiImageService.enabled,
     };
   }
 
@@ -226,6 +231,75 @@ ${JSON.stringify(
         moneda: summary.moneda,
       },
     };
+  }
+
+  async getRoast(
+    userId: string,
+    dto: AiRoastDto,
+  ): Promise<
+    MetricsRoast & {
+      contextUsed: { month: number; year: number; moneda: string };
+    }
+  > {
+    const summary = await this.getSummary(userId, {
+      month: dto.month,
+      year: dto.year,
+      accountIds: dto.accountIds,
+      moneda: dto.moneda,
+    });
+
+    // Solo lo necesario para el humor (no series completas).
+    const compact = {
+      periodo: summary.periodo,
+      moneda: summary.moneda,
+      totales: summary.totales,
+      comparativaMesAnterior: summary.comparativaMesAnterior,
+      proyeccionFinMes: summary.proyeccionFinMes,
+      porCategoria: summary.porCategoria.slice(0, 6),
+      topGastos: summary.topGastos,
+      anomalias: summary.anomalias.slice(0, 5),
+      topTags: summary.topTags.slice(0, 6),
+    };
+
+    const roast = await this.anthropicService.roastMetrics(
+      compact,
+      dto.tono ?? 'picante',
+    );
+
+    return {
+      ...roast,
+      contextUsed: {
+        month: dto.month,
+        year: dto.year,
+        moneda: summary.moneda,
+      },
+    };
+  }
+
+  /**
+   * Genera una ILUSTRACIÓN IA del roast (OpenAI gpt-image-1).
+   * Manual y opcional: requiere OPENAI_API_KEY.
+   */
+  async generateRoastImage(
+    userId: string,
+    dto: AiRoastDto,
+  ): Promise<{
+    imagenDataUrl: string;
+    contextUsed: { month: number; year: number; moneda: string };
+  }> {
+    if (!this.openaiImageService.enabled) {
+      throw new BadRequestException(
+        'La ilustración IA no está configurada en el servidor (OPENAI_API_KEY).',
+      );
+    }
+
+    const roast = await this.getRoast(userId, dto);
+    const escena = roast.frases.slice(0, 3).join(' ');
+    const prompt = `Ilustración cómica estilo cartoon plano y vibrante (flat vector illustration), humor financiero amigable. Tema: "${roast.titulo}". Escena graciosa que represente: ${escena}. SIN texto ni letras ni números en la imagen. Familiar y no ofensiva, colores alegres, composición simple, fondo limpio.`;
+
+    const imagenDataUrl = await this.openaiImageService.generate(prompt);
+
+    return { imagenDataUrl, contextUsed: roast.contextUsed };
   }
 
   // ==================== EXPORT (PRO) ====================

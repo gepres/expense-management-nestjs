@@ -59,6 +59,15 @@ class EnvironmentVariables {
   @IsOptional()
   ANTHROPIC_ANALYTICS_MODEL: string = 'claude-sonnet-4-6';
 
+  // OpenAI (opcional — solo para ilustración IA del roast)
+  @IsString()
+  @IsOptional()
+  OPENAI_API_KEY: string;
+
+  @IsString()
+  @IsOptional()
+  OPENAI_IMAGE_MODEL: string = 'gpt-image-1';
+
   // Cloudinary
   @IsString()
   @IsOptional()

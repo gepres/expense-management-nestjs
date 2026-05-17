@@ -198,6 +198,24 @@ Detalle de pruebas y respuestas: [RECEIPTS_TESTING.md](./RECEIPTS_TESTING.md).
 | POST | `/notificaciones/marcar-todas-leidas` | 🔒 | Marcar todas como leídas |
 | DELETE | `/notificaciones/:id` | 🔒 | Eliminar notificación |
 
+## Analytics (Métricas PRO) · `/api/analytics`
+
+> Todo el controlador está detrás de `FirebaseAuthGuard` + `ProGuard`
+> (`@RequirePro()`). `ProGuard` lee `users/{uid}.role` de Firestore; solo
+> `pro`/`admin` pasan, el resto recibe **403**.
+
+| Método | Ruta | Auth | Descripción |
+|---|---|:---:|---|
+| GET | `/analytics/summary` | 🔒 PRO | KPIs/series del periodo (sin IA). Query: `month`, `year`, `accountIds?`, `moneda?` |
+| POST | `/analytics/ai-insights` | 🔒 PRO | Análisis IA estructurado (`resumen`, `recomendaciones`, `insights`, `anomalias`, `ahorroEstimado`) |
+| POST | `/analytics/ai-ask` | 🔒 PRO | Pregunta libre con el summary como contexto |
+| POST | `/analytics/ai-roast` | 🔒 PRO | Roast sarcástico compartible (`titulo`, `puntuacionDesastre`, `frases`, `veredicto`, `hashtags`). Body acepta `tono: suave\|picante` |
+| POST | `/analytics/ai-image` | 🔒 PRO | Ilustración IA del roast (OpenAI `gpt-image-1`) → data URL PNG. Requiere `OPENAI_API_KEY`; sin ella responde 400 y `summary.aiImageEnabled=false` |
+| GET | `/analytics/export` | 🔒 PRO | Descarga `format=excel\|csv` (xlsx multi-hoja / csv con BOM) |
+
+Modelo IA configurable: `ANTHROPIC_ANALYTICS_MODEL` (hereda `ANTHROPIC_MODEL`,
+default `claude-sonnet-4-6`). Nunca se mezclan monedas en los cálculos.
+
 ## Shortcuts · `/api/shortcuts`
 
 | Método | Ruta | Auth | Descripción |

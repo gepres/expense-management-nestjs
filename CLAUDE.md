@@ -88,6 +88,7 @@ All endpoints (except `/api/health`) require Firebase ID Token authentication vi
 | `shopping-lists` | Shopping lists with items + add-from-free-text. |
 | `shared` | Shared expense groups (`shared_groups`): budgets, members, invitations, settlement, insights, export. Controller prefix `/api/shared-groups`. |
 | `whatsapp` | Twilio WhatsApp ingestion. `POST /api/whatsapp/webhook` only **enqueues** to Firestore `whatsapp_queue`; actual processing (AI, expense registration, replies) lives in the separate `gastos-firebase-functions` repo. Also `link`/`unlink`. See section + `docs/WHATSAPP_FLOW.md`. |
+| `analytics` | **Métricas PRO**. `/api/analytics/{summary,ai-insights,ai-ask,ai-roast,ai-image,export}`. Entire controller behind `FirebaseAuthGuard` + `ProGuard` (`@RequirePro()` → reads `users/{uid}.role`, only `pro`/`admin`). Computes KPIs/series from `expenses`; IA texto via `AnthropicService.analyzeMetrics()`/`roastMetrics()` (`ANTHROPIC_ANALYTICS_MODEL`); `ai-image` via `OpenAiImageService` (`gpt-image-1`, opcional `OPENAI_API_KEY`, global `OpenAiModule`). Never mixes currencies. |
 
 > `src/modules/fcm/` is an **empty placeholder directory** — not wired into `app.module.ts`. Ignore it unless implementing push notifications.
 
@@ -122,6 +123,12 @@ shared_groups/                    # Shared expense groups
 ## Critical Development Patterns
 
 ### User Authentication & Authorization
+
+> **PRO gating**: `@RequirePro()` (`src/common/decorators/require-pro.decorator.ts`)
+> + `ProGuard` (`src/common/guards/pro.guard.ts`). Apply as
+> `@UseGuards(FirebaseAuthGuard, ProGuard)` + `@RequirePro()` (handler or
+> controller). The guard reads `users/{uid}.role` from Firestore — `pro`/`admin`
+> pass, others get 403. Never trust a client-sent role. Used by the `analytics` module.
 
 ```typescript
 // All services must filter by userId - NEVER return data without ownership check
