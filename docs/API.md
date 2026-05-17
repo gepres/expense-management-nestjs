@@ -233,6 +233,12 @@ default `claude-sonnet-4-6`). Nunca se mezclan monedas en los cálculos.
 | Método | Ruta | Auth | Descripción |
 |---|---|:---:|---|
 | GET | `/ai-usage/me` | 🔒 | Snapshot de cuota del usuario del mes: `{ mes, role, used, limit, remaining, pct, warn, blocked, imagesUsed, imagesLimit, imagesBlocked, resetAt, warnPct }`. `limit: null` = admin (ilimitado) |
+| GET | `/ai-usage/quota-config` | 🔒 admin | Límites por rol efectivos + origen (`doc`/`env`) + defaults de env |
+| PUT | `/ai-usage/quota-config` | 🔒 admin | Override de límites por rol (`appConfig/aiQuota`); prioridad sobre `AI_QUOTA_*`, propaga ≤60s |
+| POST | `/ai-usage/quota-adjust` | 🔒 admin | Reset/ampliar cuota de un usuario el mes en curso (`aiQuotaAdjust/{uid}_{mes}`, no toca el rollup). Body `{ userId, mode:'reset'\|'bonus', tokens?, note? }` → snapshot |
+| GET | `/ai-usage/vendor-cost?mes=` | 🔒 admin | Gasto **real facturado** por proveedor (Anthropic Cost Report + OpenAI Costs API, Admin keys). NO es saldo restante. Opcional por proveedor |
+
+> `🔒 admin` = `FirebaseAuthGuard` + `AdminGuard` (rol `admin` en `users/{uid}.role`).
 
 Tracking/cuotas configurables por env `AI_PRICE_*` y `AI_QUOTA_*` (ver
 `.env` / `docs/ARCHITECTURE.md` §7). Las colecciones `aiUsageEvents`,

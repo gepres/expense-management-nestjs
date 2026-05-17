@@ -69,6 +69,14 @@ class EnvironmentVariables {
   @IsOptional()
   ANTHROPIC_MODEL_HELPER: string = 'claude-haiku-4-5';
 
+  // Admin API key de Anthropic (opcional) — SOLO para leer el Cost
+  // Report de la organización en el panel admin. Es distinta de
+  // ANTHROPIC_API_KEY (empieza con `sk-ant-admin...`). Sin ella, el
+  // panel muestra solo el costo estimado + link a la consola.
+  @IsString()
+  @IsOptional()
+  ANTHROPIC_ADMIN_KEY: string;
+
   // OpenAI (opcional — solo para ilustración IA del roast)
   @IsString()
   @IsOptional()
@@ -77,6 +85,13 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   OPENAI_IMAGE_MODEL: string = 'gpt-image-1';
+
+  // Admin API key de OpenAI (opcional) — SOLO para leer el Costs API
+  // de la organización en el panel admin (org owner key). Sin ella, el
+  // panel muestra solo el costo estimado + link a la consola.
+  @IsString()
+  @IsOptional()
+  OPENAI_ADMIN_KEY: string;
 
   // Cloudinary
   @IsString()

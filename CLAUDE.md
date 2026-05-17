@@ -89,7 +89,7 @@ All endpoints (except `/api/health`) require Firebase ID Token authentication vi
 | `shopping-lists` | Shopping lists with items + add-from-free-text. |
 | `shared` | Shared expense groups (`shared_groups`): budgets, members, invitations, settlement, insights, export. Controller prefix `/api/shared-groups`. |
 | `whatsapp` | Twilio WhatsApp ingestion. `POST /api/whatsapp/webhook` only **enqueues** to Firestore `whatsapp_queue`; actual processing (AI, expense registration, replies) lives in the separate `gastos-firebase-functions` repo. Also `link`/`unlink`. See section + `docs/WHATSAPP_FLOW.md`. |
-| `ai-usage` | **Tracking de consumo IA (Fase 1)**. Global `UsageService.record()` best-effort (nunca rompe el flujo IA): escribe `aiUsageEvents/{id}` + incrementa `aiUsageMonthly/{uid}_{YYYY-MM}` (scope `user`, **top-level** para bloquear write del cliente) o `aiUsageAppMonthly/{YYYY-MM}` (scope `app`). `AnthropicService`/`OpenAiImageService`/`OpenAiTranscriptionService` reciben `usageCtx{userId,scope,feature}` por call site (explícito; default `app`). **`receipt_ocr` ahora es `scope:user`** (el endpoint de recibos pasó a auth-required en la homologación Fase 2 — cuenta en la cuota del usuario). El audio web registra `voice_transcribe` (`audio_seconds`, estimado por tamaño) + `voice_expense`, ambos `scope:user`. Tarifas estimadas en `config/ai-pricing.config.ts`. Reglas/índices en el repo frontend `gastos`. **Fase 2 (enforcement)**: `QuotaService.assertWithinQuota()` se llama ANTES de cada operación `scope:user` (chat/analytics/voz) y lanza **429** si excede la cuota del rol (`config/ai-quota.config.ts`, env `AI_QUOTA_*`; admin = ilimitado; sub-límite de imágenes). `GET /api/ai-usage/me` devuelve el snapshot de cuota del usuario. |
+| `ai-usage` | **Tracking de consumo IA (Fase 1)**. Global `UsageService.record()` best-effort (nunca rompe el flujo IA): escribe `aiUsageEvents/{id}` + incrementa `aiUsageMonthly/{uid}_{YYYY-MM}` (scope `user`, **top-level** para bloquear write del cliente) o `aiUsageAppMonthly/{YYYY-MM}` (scope `app`). `AnthropicService`/`OpenAiImageService`/`OpenAiTranscriptionService` reciben `usageCtx{userId,scope,feature}` por call site (explícito; default `app`). **`receipt_ocr` ahora es `scope:user`** (el endpoint de recibos pasó a auth-required en la homologación Fase 2 — cuenta en la cuota del usuario). El audio web registra `voice_transcribe` (`audio_seconds`, estimado por tamaño) + `voice_expense`, ambos `scope:user`. Tarifas estimadas en `config/ai-pricing.config.ts`. Reglas/índices en el repo frontend `gastos`. **Fase 2 (enforcement)**: `QuotaService.assertWithinQuota()` se llama ANTES de cada operación `scope:user` (chat/analytics/voz) y lanza **429** si excede la cuota del rol (`config/ai-quota.config.ts`, env `AI_QUOTA_*`; admin = ilimitado; sub-límite de imágenes). `GET /api/ai-usage/me` devuelve el snapshot de cuota del usuario. **Admin (`AdminGuard`)**: límites por rol editables sin redeploy en `appConfig/aiQuota` (override sobre env, cache 60s) vía `GET/PUT /ai-usage/quota-config`; reset/ampliar cuota por usuario en `aiQuotaAdjust/{uid}_{mes}.bonusTokens` (sumado al límite del rol, NO toca el rollup de tracking) vía `POST /ai-usage/quota-adjust`; `VendorCostService` lee el gasto REAL facturado (Anthropic Cost Report API + OpenAI Costs API con `ANTHROPIC_ADMIN_KEY`/`OPENAI_ADMIN_KEY` opcionales — NO es saldo restante, ningún vendor lo expone) vía `GET /ai-usage/vendor-cost?mes=`. |
 | `analytics` | **Métricas PRO**. `/api/analytics/{summary,ai-insights,ai-ask,ai-roast,ai-image,export}`. Entire controller behind `FirebaseAuthGuard` + `ProGuard` (`@RequirePro()` → reads `users/{uid}.role`, only `pro`/`admin`). Computes KPIs/series from `expenses`; IA texto via `AnthropicService.analyzeMetrics()`/`roastMetrics()` (`ANTHROPIC_ANALYTICS_MODEL`); `ai-image` via `OpenAiImageService` (`gpt-image-1`, opcional `OPENAI_API_KEY`, global `OpenAiModule`). Never mixes currencies. |
 
 > `src/modules/fcm/` is an **empty placeholder directory** — not wired into `app.module.ts`. Ignore it unless implementing push notifications.
@@ -123,6 +123,9 @@ notificaciones/                   # In-app alerts from cron (create blocked from
 receipts/                         # Receipt documents
 shopping-lists/                   # Shopping lists
 shared_groups/                    # Shared expense groups
+aiUsageEvents/ · aiUsageMonthly/ · aiUsageAppMonthly/   # Tracking IA (Admin SDK only)
+appConfig/aiQuota                 # Override admin de límites de cuota (Admin SDK only)
+aiQuotaAdjust/{uid}_{mes}         # Bonus/reset de cuota por usuario (Admin SDK only)
 ```
 
 ## Critical Development Patterns
@@ -134,6 +137,11 @@ shared_groups/                    # Shared expense groups
 > `@UseGuards(FirebaseAuthGuard, ProGuard)` + `@RequirePro()` (handler or
 > controller). The guard reads `users/{uid}.role` from Firestore — `pro`/`admin`
 > pass, others get 403. Never trust a client-sent role. Used by the `analytics` module.
+>
+> **Admin gating**: `AdminGuard` (`src/common/guards/admin.guard.ts`) —
+> aplica SIEMPRE vía `@UseGuards(FirebaseAuthGuard, AdminGuard)` (sin
+> decorador). Solo rol `admin`. Usado por los endpoints admin de
+> `ai-usage` (quota-config, quota-adjust, vendor-cost).
 
 ```typescript
 // All services must filter by userId - NEVER return data without ownership check

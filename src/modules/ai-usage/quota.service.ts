@@ -31,14 +31,86 @@ interface QuotaLimits {
   images: number;
 }
 
+/** Número finito y >= 0, si no el fallback. */
+function numOr(v: unknown, fallback: number): number {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
+/** Límites por rol editables desde el panel admin. */
+export interface QuotaConfig {
+  standardTokens: number;
+  proTokens: number;
+  standardImages: number;
+  proImages: number;
+  warnPct: number;
+}
+
+/** Doc Firestore donde el admin persiste el override de cuotas. */
+const QUOTA_CONFIG_DOC = { col: 'appConfig', id: 'aiQuota' } as const;
+/** TTL del cache en memoria (amortiza el read en cada assertWithinQuota). */
+const CONFIG_TTL_MS = 60_000;
+
 @Injectable()
 export class QuotaService {
   private readonly logger = new Logger(QuotaService.name);
+  private cachedConfig: QuotaConfig | null = null;
+  private cacheAt = 0;
+  /** true si el último config efectivo vino del doc (no de env). */
+  private cacheFromDoc = false;
 
   constructor(
     private readonly firebase: FirebaseService,
     private readonly config: ConfigService,
   ) {}
+
+  /** Defaults desde env (`ai-quota.config.ts`). */
+  private envConfig(): QuotaConfig {
+    const q = this.config.get<Partial<QuotaConfig>>('aiQuota') ?? {};
+    return {
+      standardTokens: q.standardTokens ?? 100000,
+      proTokens: q.proTokens ?? 2000000,
+      standardImages: q.standardImages ?? 0,
+      proImages: q.proImages ?? 50,
+      warnPct: q.warnPct ?? 80,
+    };
+  }
+
+  /**
+   * Config efectiva: doc `appConfig/aiQuota` sobre defaults de env, con
+   * cache de {@link CONFIG_TTL_MS}. Best-effort: si falla la lectura, env.
+   */
+  private async effectiveConfig(): Promise<QuotaConfig> {
+    const now = Date.now();
+    if (this.cachedConfig && now - this.cacheAt < CONFIG_TTL_MS) {
+      return this.cachedConfig;
+    }
+    const env = this.envConfig();
+    try {
+      const snap = await this.firebase
+        .getFirestore()
+        .collection(QUOTA_CONFIG_DOC.col)
+        .doc(QUOTA_CONFIG_DOC.id)
+        .get();
+      const d = (snap.exists ? snap.data() : null) as Partial<QuotaConfig> | null;
+      const merged: QuotaConfig = {
+        standardTokens: numOr(d?.standardTokens, env.standardTokens),
+        proTokens: numOr(d?.proTokens, env.proTokens),
+        standardImages: numOr(d?.standardImages, env.standardImages),
+        proImages: numOr(d?.proImages, env.proImages),
+        warnPct: numOr(d?.warnPct, env.warnPct),
+      };
+      this.cachedConfig = merged;
+      this.cacheFromDoc = !!d;
+      this.cacheAt = now;
+      return merged;
+    } catch {
+      this.cachedConfig = env;
+      this.cacheFromDoc = false;
+      this.cacheAt = now;
+      return env;
+    }
+  }
 
   private monthKey(d: Date = new Date()): string {
     const m = String(d.getUTCMonth() + 1).padStart(2, '0');
@@ -51,27 +123,50 @@ export class QuotaService {
     ).toISOString();
   }
 
-  private limitsForRole(role: UserRole): QuotaLimits {
+  private limitsForRole(role: UserRole, cfg: QuotaConfig): QuotaLimits {
     if (role === 'admin') {
       return { tokens: Infinity, images: Infinity };
     }
-    const q = this.config.get<{
-      standardTokens: number;
-      proTokens: number;
-      standardImages: number;
-      proImages: number;
-    }>('aiQuota');
     if (role === 'pro') {
-      return { tokens: q?.proTokens ?? 2000000, images: q?.proImages ?? 50 };
+      return { tokens: cfg.proTokens, images: cfg.proImages };
     }
+    return { tokens: cfg.standardTokens, images: cfg.standardImages };
+  }
+
+  /** Config efectiva + de dónde sale (para el panel admin). */
+  async getQuotaConfig(): Promise<{
+    config: QuotaConfig;
+    source: 'doc' | 'env';
+    envDefaults: QuotaConfig;
+  }> {
+    const config = await this.effectiveConfig();
     return {
-      tokens: q?.standardTokens ?? 100000,
-      images: q?.standardImages ?? 0,
+      config,
+      source: this.cacheFromDoc ? 'doc' : 'env',
+      envDefaults: this.envConfig(),
     };
   }
 
-  private warnPct(): number {
-    return this.config.get<{ warnPct: number }>('aiQuota')?.warnPct ?? 80;
+  /** Persiste el override (admin) e invalida el cache. */
+  async setQuotaConfig(
+    cfg: QuotaConfig,
+    adminUid: string,
+  ): Promise<QuotaConfig> {
+    await this.firebase
+      .getFirestore()
+      .collection(QUOTA_CONFIG_DOC.col)
+      .doc(QUOTA_CONFIG_DOC.id)
+      .set(
+        {
+          ...cfg,
+          updatedAt: new Date().toISOString(),
+          updatedBy: adminUid,
+        },
+        { merge: true },
+      );
+    this.cachedConfig = null; // fuerza relectura
+    this.cacheAt = 0;
+    return cfg;
   }
 
   async getUserRole(uid: string): Promise<UserRole> {
@@ -117,21 +212,43 @@ export class QuotaService {
     }
   }
 
+  /**
+   * Bonus de tokens del mes para el usuario (`aiQuotaAdjust/{uid}_{mes}`),
+   * fijado por un admin. No toca el rollup de tracking. Best-effort → 0.
+   */
+  private async readBonus(uid: string, mes: string): Promise<number> {
+    try {
+      const snap = await this.firebase
+        .getFirestore()
+        .collection('aiQuotaAdjust')
+        .doc(`${uid}_${mes}`)
+        .get();
+      if (!snap.exists) return 0;
+      return numOr(snap.data()?.bonusTokens, 0);
+    } catch {
+      return 0;
+    }
+  }
+
   async snapshot(uid: string, role?: UserRole): Promise<QuotaSnapshot> {
     const r = role ?? (await this.getUserRole(uid));
     const mes = this.monthKey();
-    const limits = this.limitsForRole(r);
+    const cfg = await this.effectiveConfig();
+    const limits = this.limitsForRole(r, cfg);
     const { tokens: used, images: imagesUsed } = await this.readUsage(
       uid,
       mes,
     );
 
     const unlimited = !Number.isFinite(limits.tokens);
-    const limit = unlimited ? null : limits.tokens;
+    // Límite efectivo = límite del rol + bonus/ajuste del admin (si lo hay).
+    const bonus = unlimited ? 0 : await this.readBonus(uid, mes);
+    const effTokens = unlimited ? limits.tokens : limits.tokens + bonus;
+    const limit = unlimited ? null : effTokens;
     const pct = unlimited
       ? 0
-      : Math.min(100, Math.round((used / Math.max(limits.tokens, 1)) * 100));
-    const wp = this.warnPct();
+      : Math.min(100, Math.round((used / Math.max(effTokens, 1)) * 100));
+    const wp = cfg.warnPct;
 
     return {
       mes,
@@ -141,7 +258,7 @@ export class QuotaService {
       remaining: limit === null ? null : Math.max(0, limit - used),
       pct,
       warn: !unlimited && pct >= wp && pct < 100,
-      blocked: !unlimited && used >= limits.tokens,
+      blocked: !unlimited && used >= effTokens,
       imagesUsed,
       imagesLimit: Number.isFinite(limits.images) ? limits.images : null,
       imagesBlocked:
@@ -149,6 +266,48 @@ export class QuotaService {
       resetAt: this.resetAtISO(),
       warnPct: wp,
     };
+  }
+
+  /**
+   * Ajusta la cuota de un usuario para el mes en curso (admin).
+   *  - `reset`: `bonusTokens = used` → remaining vuelve al límite del rol.
+   *  - `bonus`: `bonusTokens += tokens` → tokens extra este mes.
+   * Devuelve el snapshot actualizado del usuario.
+   */
+  async adjustUserQuota(
+    adminUid: string,
+    dto: { userId: string; mode: 'reset' | 'bonus'; tokens?: number; note?: string },
+  ): Promise<QuotaSnapshot> {
+    const mes = this.monthKey();
+    const { tokens: used } = await this.readUsage(dto.userId, mes);
+    const currentBonus = await this.readBonus(dto.userId, mes);
+
+    const newBonus =
+      dto.mode === 'reset'
+        ? used
+        : currentBonus + Math.max(1, Math.floor(dto.tokens ?? 0));
+
+    await this.firebase
+      .getFirestore()
+      .collection('aiQuotaAdjust')
+      .doc(`${dto.userId}_${mes}`)
+      .set(
+        {
+          userId: dto.userId,
+          mes,
+          bonusTokens: newBonus,
+          lastMode: dto.mode,
+          note: dto.note ?? null,
+          updatedBy: adminUid,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true },
+      );
+
+    this.logger.log(
+      `Cuota ajustada uid=${dto.userId} mode=${dto.mode} bonus=${newBonus} by=${adminUid}`,
+    );
+    return this.snapshot(dto.userId);
   }
 
   /**
