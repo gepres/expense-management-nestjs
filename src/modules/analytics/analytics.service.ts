@@ -179,6 +179,7 @@ export class AnalyticsService {
     const result = await this.anthropicService.analyzeMetrics(
       compact,
       dto.focus,
+      { userId, scope: 'user', feature: 'metrics_insights' },
     );
 
     return {
@@ -221,6 +222,7 @@ ${JSON.stringify(
       dto.question,
       [],
       context,
+      { userId, scope: 'user', feature: 'metrics_ask' },
     );
 
     return {
@@ -264,6 +266,7 @@ ${JSON.stringify(
     const roast = await this.anthropicService.roastMetrics(
       compact,
       dto.tono ?? 'picante',
+      { userId, scope: 'user', feature: 'metrics_roast' },
     );
 
     return {
@@ -297,7 +300,11 @@ ${JSON.stringify(
     const escena = roast.frases.slice(0, 3).join(' ');
     const prompt = `Ilustración cómica estilo cartoon plano y vibrante (flat vector illustration), humor financiero amigable. Tema: "${roast.titulo}". Escena graciosa que represente: ${escena}. SIN texto ni letras ni números en la imagen. Familiar y no ofensiva, colores alegres, composición simple, fondo limpio.`;
 
-    const imagenDataUrl = await this.openaiImageService.generate(prompt);
+    const imagenDataUrl = await this.openaiImageService.generate(prompt, {
+      userId,
+      scope: 'user',
+      feature: 'metrics_image',
+    });
 
     return { imagenDataUrl, contextUsed: roast.contextUsed };
   }

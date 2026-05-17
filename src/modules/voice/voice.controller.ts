@@ -3,6 +3,8 @@ import { VoiceService } from './voice.service';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { ProcessVoiceDto } from './dto/process-voice.dto';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { FirebaseUser } from '../../common/interfaces/firebase-user.interface';
 
 @ApiTags('Voice')
 @ApiBearerAuth('firebase-auth')
@@ -14,7 +16,13 @@ export class VoiceController {
   @Post('process-expense')
   @ApiOperation({ summary: 'Procesar transcripción de voz a gasto' })
   @ApiResponse({ status: 201, description: 'Datos extraídos exitosamente' })
-  async processExpenseFromVoice(@Body() processVoiceDto: ProcessVoiceDto) {
-    return this.voiceService.extractExpenseData(processVoiceDto.transcript);
+  async processExpenseFromVoice(
+    @CurrentUser() user: FirebaseUser,
+    @Body() processVoiceDto: ProcessVoiceDto,
+  ) {
+    return this.voiceService.extractExpenseData(
+      processVoiceDto.transcript,
+      user.uid,
+    );
   }
 }

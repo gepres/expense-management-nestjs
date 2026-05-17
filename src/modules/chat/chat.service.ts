@@ -225,6 +225,7 @@ ${JSON.stringify(expenses.map((e: any) => ({
       dto.message,
       conversationHistory as any,
       context,
+      { userId, scope: 'user', feature: 'assistant_chat' },
     );
 
     // 4. Save user message
@@ -303,6 +304,7 @@ ${JSON.stringify(expenses.map((e: any) => ({
         dto.message,
         [],
         context,
+        { userId, scope: 'user', feature: 'assistant_chat' },
       );
 
       return {

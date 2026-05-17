@@ -307,7 +307,12 @@ Responde SOLO con un array JSON válido de objetos con esta estructura:
 Si una línea no se puede parsear, ignórala. NO incluyas texto adicional, solo el JSON.`;
 
     try {
-      const response = await this.anthropicService.sendMessage(prompt);
+      const response = await this.anthropicService.sendMessage(
+        prompt,
+        [],
+        undefined,
+        { scope: 'app', feature: 'shopping_parse' },
+      );
 
       // Extract JSON from response
       let jsonText = response.trim();

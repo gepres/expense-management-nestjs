@@ -9,9 +9,11 @@ import firebaseConfig from './config/firebase.config';
 import anthropicConfig from './config/anthropic.config';
 import cloudinaryConfig from './config/cloudinary.config';
 import openaiConfig from './config/openai.config';
+import aiPricingConfig from './config/ai-pricing.config';
 import { FirebaseModule } from './modules/firebase/firebase.module';
 import { AnthropicModule } from './modules/anthropic/anthropic.module';
 import { OpenAiModule } from './modules/openai/openai.module';
+import { AiUsageModule } from './modules/ai-usage/ai-usage.module';
 import { UsersModule } from './modules/users/users.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { ReceiptsModule } from './modules/receipts/receipts.module';
@@ -39,7 +41,13 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     ConfigModule.forRoot({
       isGlobal: true,
       validate,
-      load: [firebaseConfig, anthropicConfig, cloudinaryConfig, openaiConfig],
+      load: [
+        firebaseConfig,
+        anthropicConfig,
+        cloudinaryConfig,
+        openaiConfig,
+        aiPricingConfig,
+      ],
     }),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
@@ -62,6 +70,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     FirebaseModule,
     AnthropicModule,
     OpenAiModule,
+    AiUsageModule,
     UsersModule,
     CategoriesModule,
     ReceiptsModule,

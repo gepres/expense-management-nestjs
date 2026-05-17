@@ -140,7 +140,11 @@ export class WhatsappController {
 
       // 2. Enviar a Anthropic para extracción
       this.logger.log('🤖 Sending image to Anthropic for extraction...');
-      const extractionResult = await this.anthropicService.extractReceiptData(base64Image, mimeType);
+      const extractionResult = await this.anthropicService.extractReceiptData(
+        base64Image,
+        mimeType,
+        { scope: 'app', feature: 'whatsapp_legacy_receipt_ocr' },
+      );
       
       this.logger.log(`✅ Extraction result: ${JSON.stringify(extractionResult)}`);
 

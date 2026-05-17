@@ -711,7 +711,10 @@ export class ExpensesService {
     
     Si falta información, infiérela o usa defaults. Responde SOLO con el JSON.`;
 
-    const response = await this.anthropicService.sendMessage(prompt, []);
+    const response = await this.anthropicService.sendMessage(prompt, [], undefined, {
+      scope: 'app',
+      feature: 'expense_parse_text',
+    });
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);

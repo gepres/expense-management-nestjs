@@ -16,7 +16,10 @@ export interface ExpenseData {
 export class VoiceService {
   constructor(private readonly anthropicService: AnthropicService) {}
 
-  async extractExpenseData(transcript: string): Promise<ExpenseData> {
+  async extractExpenseData(
+    transcript: string,
+    userId?: string,
+  ): Promise<ExpenseData> {
     const today = new Date().toLocaleDateString('en-CA', {
       timeZone: 'America/Lima',
     });
@@ -53,7 +56,11 @@ Reglas:
 
 Responde SOLO con el JSON, sin texto adicional.`;
 
-    const response = await this.anthropicService.sendMessage(prompt, []);
+    const response = await this.anthropicService.sendMessage(prompt, [], undefined, {
+      userId,
+      scope: 'user',
+      feature: 'voice_expense',
+    });
 
     try {
       const jsonMatch = response.match(/\{[\s\S]*\}/);

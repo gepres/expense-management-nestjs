@@ -6,6 +6,14 @@ import {
   buildChatPromptWithContext,
 } from './prompts/chat.prompt';
 import { RECEIPT_EXTRACTION_PROMPT } from './prompts/receipt-extraction.prompt';
+import { UsageService } from '../ai-usage/usage.service';
+import { UsageContext } from '../ai-usage/interfaces/ai-usage.interface';
+
+/** Forma mínima del `usage` que devuelve la API de mensajes. */
+interface AnthropicUsageLike {
+  input_tokens?: number;
+  output_tokens?: number;
+}
 
 /**
  * Resultado estructurado del análisis de métricas (endpoint PRO
@@ -56,7 +64,10 @@ export class AnthropicService {
   private client: Anthropic;
   private model: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private readonly usageService: UsageService,
+  ) {
     const apiKey = this.configService.get<string>('anthropic.apiKey');
     this.model =
       this.configService.get<string>('anthropic.model') ||
@@ -69,10 +80,32 @@ export class AnthropicService {
     this.logger.log('Anthropic service initialized');
   }
 
+  /**
+   * Registra el consumo de una llamada (best-effort, no bloquea).
+   * `usageCtx` lo provee el call site; si falta, scope `app` (no cuenta cuota).
+   */
+  private trackUsage(
+    model: string,
+    usage: AnthropicUsageLike | undefined,
+    usageCtx: Partial<UsageContext> | undefined,
+    feature: string,
+  ): void {
+    void this.usageService.record({
+      provider: 'anthropic',
+      model,
+      inputTokens: usage?.input_tokens ?? 0,
+      outputTokens: usage?.output_tokens ?? 0,
+      userId: usageCtx?.userId ?? null,
+      scope: usageCtx?.scope ?? 'app',
+      feature: usageCtx?.feature ?? feature,
+    });
+  }
+
   async sendMessage(
     userMessage: string,
     conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [],
     context?: string,
+    usageCtx?: Partial<UsageContext>,
   ): Promise<string> {
     try {
       const prompt = buildChatPromptWithContext(userMessage, context);
@@ -96,6 +129,8 @@ export class AnthropicService {
         messages,
       });
 
+      this.trackUsage(this.model, response.usage, usageCtx, 'chat');
+
       const content = response.content[0];
       if (content.type === 'text') {
         this.logger.log(
@@ -111,7 +146,11 @@ export class AnthropicService {
     }
   }
 
-  async extractReceiptData(imageBase64: string, mimeType: string = 'image/jpeg'): Promise<any> {
+  async extractReceiptData(
+    imageBase64: string,
+    mimeType: string = 'image/jpeg',
+    usageCtx?: Partial<UsageContext>,
+  ): Promise<any> {
     try {
       this.logger.log('Extracting receipt data with Claude Vision');
 
@@ -138,6 +177,8 @@ export class AnthropicService {
           },
         ],
       });
+
+      this.trackUsage(this.model, response.usage, usageCtx, 'receipt_ocr');
 
       const content = response.content[0];
       if (content.type === 'text') {
@@ -176,6 +217,7 @@ export class AnthropicService {
     amount: number,
     merchant: string | undefined,
     availableCategories: string[],
+    usageCtx?: Partial<UsageContext>,
   ): Promise<string> {
     try {
       const prompt = `Categorías disponibles: ${availableCategories.join(', ')}
@@ -199,6 +241,8 @@ Responde solo con el nombre exacto de la categoría.`;
         ],
       });
 
+      this.trackUsage(this.model, response.usage, usageCtx, 'autocategorize');
+
       const content = response.content[0];
       if (content.type === 'text') {
         const suggestedCategory = content.text.trim();
@@ -217,6 +261,7 @@ Responde solo con el nombre exacto de la categoría.`;
     amount: number,
     category: string,
     merchant?: string,
+    usageCtx?: Partial<UsageContext>,
   ): Promise<string> {
     try {
       const prompt = `Basándote en estos datos de un gasto:
@@ -238,6 +283,13 @@ Responde solo con la descripción, sin explicaciones adicionales.`;
         ],
       });
 
+      this.trackUsage(
+        this.model,
+        response.usage,
+        usageCtx,
+        'enhance_description',
+      );
+
       const content = response.content[0];
       if (content.type === 'text') {
         return content.text.trim();
@@ -253,6 +305,7 @@ Responde solo con la descripción, sin explicaciones adicionales.`;
   async analyzeExpenses(
     expensesData: any,
     question?: string,
+    usageCtx?: Partial<UsageContext>,
   ): Promise<{ analysis: string; recommendations: string[]; insights: string[] }> {
     try {
       const prompt = question
@@ -286,6 +339,13 @@ Formatea tu respuesta en secciones claras.`;
           },
         ],
       });
+
+      this.trackUsage(
+        this.model,
+        response.usage,
+        usageCtx,
+        'analyze_expenses',
+      );
 
       const content = response.content[0];
       if (content.type === 'text') {
@@ -338,6 +398,7 @@ Formatea tu respuesta en secciones claras.`;
   async analyzeMetrics(
     summary: unknown,
     focus?: string,
+    usageCtx?: Partial<UsageContext>,
   ): Promise<MetricsAiResult> {
     const analyticsModel =
       this.configService.get<string>('anthropic.analyticsModel') || this.model;
@@ -368,6 +429,13 @@ Reglas: máximo 5 recomendaciones, 4 insights y 4 anomalías. Sé específico co
         system: CHAT_SYSTEM_PROMPT,
         messages: [{ role: 'user', content: prompt }],
       });
+
+      this.trackUsage(
+        analyticsModel,
+        response.usage,
+        usageCtx,
+        'metrics_insights',
+      );
 
       const content = response.content[0];
       if (content.type !== 'text') {
@@ -409,6 +477,7 @@ Reglas: máximo 5 recomendaciones, 4 insights y 4 anomalías. Sé específico co
   async roastMetrics(
     summary: unknown,
     tono: 'suave' | 'picante' = 'picante',
+    usageCtx?: Partial<UsageContext>,
   ): Promise<MetricsRoast> {
     const analyticsModel =
       this.configService.get<string>('anthropic.analyticsModel') || this.model;
@@ -443,6 +512,13 @@ Responde ÚNICAMENTE con JSON válido (sin markdown) con esta forma exacta:
           'Eres un comediante financiero peruano. Haces humor inteligente y amigable sobre hábitos de gasto. Nunca eres ofensivo ni humillante.',
         messages: [{ role: 'user', content: prompt }],
       });
+
+      this.trackUsage(
+        analyticsModel,
+        response.usage,
+        usageCtx,
+        'metrics_roast',
+      );
 
       const content = response.content[0];
       if (content.type !== 'text') {

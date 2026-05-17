@@ -106,7 +106,11 @@ export class ReceiptsController {
       let errorMessage: string | undefined;
 
       try {
-        extractedData = await this.anthropicService.extractReceiptData(base64);
+        extractedData = await this.anthropicService.extractReceiptData(
+          base64,
+          'image/jpeg',
+          { scope: 'app', feature: 'receipt_ocr' },
+        );
         this.logger.log(
           `Datos extraídos con confianza: ${extractedData.confidence}%`,
         );

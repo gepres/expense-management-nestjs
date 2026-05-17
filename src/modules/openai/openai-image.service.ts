@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
+import { UsageService } from '../ai-usage/usage.service';
+import { UsageContext } from '../ai-usage/interfaces/ai-usage.interface';
 
 /**
  * Generación de imágenes vía OpenAI (`gpt-image-1`).
@@ -21,7 +23,10 @@ export class OpenAiImageService {
   private readonly client: OpenAI | null;
   private readonly model: string;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly usageService: UsageService,
+  ) {
     const apiKey = this.configService.get<string>('openai.apiKey');
     this.model =
       this.configService.get<string>('openai.imageModel') || 'gpt-image-1';
@@ -41,7 +46,10 @@ export class OpenAiImageService {
    * Genera una imagen a partir del prompt. Devuelve un data URL PNG
    * (`data:image/png;base64,...`) listo para mostrar/compartir.
    */
-  async generate(prompt: string): Promise<string> {
+  async generate(
+    prompt: string,
+    usageCtx?: Partial<UsageContext>,
+  ): Promise<string> {
     if (!this.client) {
       throw new BadRequestException(
         'La ilustración IA no está configurada (OPENAI_API_KEY).',
@@ -61,6 +69,18 @@ export class OpenAiImageService {
       if (!b64) {
         throw new ServiceUnavailableException('OpenAI no devolvió imagen.');
       }
+
+      // Registro de consumo (best-effort): imágenes no devuelven tokens.
+      void this.usageService.record({
+        provider: 'openai',
+        model: this.model,
+        units: 1,
+        unitType: 'image',
+        userId: usageCtx?.userId ?? null,
+        scope: usageCtx?.scope ?? 'app',
+        feature: usageCtx?.feature ?? 'metrics_image',
+      });
+
       return `data:image/png;base64,${b64}`;
     } catch (error) {
       // Re-lanzar nuestras propias excepciones (p.ej. "no devolvió imagen").

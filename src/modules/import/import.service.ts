@@ -307,6 +307,7 @@ export class ImportService {
             expense.monto,
             expense.comercio,
             categories,
+            { scope: 'app', feature: 'autocategorize' },
           );
 
           if (categories.includes(suggestedCategory)) {
@@ -344,7 +345,10 @@ ${JSON.stringify(summary, null, 2)}
 Proporciona máximo 3 sugerencias en formato JSON con un array, cada una con: type (category|duplicate|format|missing|anomaly), message, affectedRows (array de números), suggestion, confidence (0-1).`;
 
     try {
-      const response = await this.anthropicService.sendMessage(prompt, []);
+      const response = await this.anthropicService.sendMessage(prompt, [], undefined, {
+        scope: 'app',
+        feature: 'import_suggestions',
+      });
       const jsonMatch = response.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         const aiSuggestions = JSON.parse(jsonMatch[0]);
