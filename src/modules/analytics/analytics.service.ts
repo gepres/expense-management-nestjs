@@ -13,6 +13,7 @@ import { AiInsightsDto } from './dto/ai-insights.dto';
 import { AiAskDto } from './dto/ai-ask.dto';
 import { AiRoastDto } from './dto/ai-roast.dto';
 import { OpenAiImageService } from '../openai/openai-image.service';
+import { QuotaService } from '../ai-usage/quota.service';
 
 type RawExpense = Record<string, any>;
 
@@ -24,6 +25,7 @@ export class AnalyticsService {
     private readonly expensesService: ExpensesService,
     private readonly anthropicService: AnthropicService,
     private readonly openaiImageService: OpenAiImageService,
+    private readonly quotaService: QuotaService,
   ) {}
 
   // ==================== SUMMARY (sin IA) ====================
@@ -176,6 +178,9 @@ export class AnalyticsService {
       topTags: summary.topTags.slice(0, 8),
     };
 
+    await this.quotaService.assertWithinQuota(userId, {
+      feature: 'metrics_insights',
+    });
     const result = await this.anthropicService.analyzeMetrics(
       compact,
       dto.focus,
@@ -218,6 +223,9 @@ ${JSON.stringify(
   2,
 )}`;
 
+    await this.quotaService.assertWithinQuota(userId, {
+      feature: 'metrics_ask',
+    });
     const respuesta = await this.anthropicService.sendMessage(
       dto.question,
       [],
@@ -263,6 +271,9 @@ ${JSON.stringify(
       topTags: summary.topTags.slice(0, 6),
     };
 
+    await this.quotaService.assertWithinQuota(userId, {
+      feature: 'metrics_roast',
+    });
     const roast = await this.anthropicService.roastMetrics(
       compact,
       dto.tono ?? 'picante',
@@ -300,6 +311,10 @@ ${JSON.stringify(
     const escena = roast.frases.slice(0, 3).join(' ');
     const prompt = `Ilustración cómica estilo cartoon plano y vibrante (flat vector illustration), humor financiero amigable. Tema: "${roast.titulo}". Escena graciosa que represente: ${escena}. SIN texto ni letras ni números en la imagen. Familiar y no ofensiva, colores alegres, composición simple, fondo limpio.`;
 
+    await this.quotaService.assertWithinQuota(userId, {
+      feature: 'metrics_image',
+      isImage: true,
+    });
     const imagenDataUrl = await this.openaiImageService.generate(prompt, {
       userId,
       scope: 'user',

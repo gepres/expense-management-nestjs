@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nest
 import { AnthropicService } from '../anthropic/anthropic.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { FirebaseService } from '../firebase/firebase.service';
+import { QuotaService } from '../ai-usage/quota.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
@@ -17,6 +18,7 @@ export class ChatService {
     private readonly anthropicService: AnthropicService,
     private readonly expensesService: ExpensesService,
     private readonly firebaseService: FirebaseService,
+    private readonly quotaService: QuotaService,
   ) {}
 
   // ==================== CONVERSATION MANAGEMENT ====================
@@ -220,7 +222,10 @@ ${JSON.stringify(expenses.map((e: any) => ({
 })), null, 2)}
 `;
 
-    // 3. Send to AI
+    // 3. Cuota + Send to AI
+    await this.quotaService.assertWithinQuota(userId, {
+      feature: 'assistant_chat',
+    });
     const response = await this.anthropicService.sendMessage(
       dto.message,
       conversationHistory as any,
@@ -299,7 +304,10 @@ ${JSON.stringify(expenses.map((e: any) => ({
 })), null, 2)}
 `;
 
-      // 4. Enviar mensaje a Anthropic con el contexto
+      // 4. Cuota + enviar mensaje a Anthropic con el contexto
+      await this.quotaService.assertWithinQuota(userId, {
+        feature: 'assistant_chat',
+      });
       const response = await this.anthropicService.sendMessage(
         dto.message,
         [],

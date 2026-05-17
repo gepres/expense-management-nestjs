@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AnthropicService } from '../anthropic/anthropic.service';
+import { QuotaService } from '../ai-usage/quota.service';
 
 export interface ExpenseData {
   monto: number;
@@ -14,7 +15,10 @@ export interface ExpenseData {
 
 @Injectable()
 export class VoiceService {
-  constructor(private readonly anthropicService: AnthropicService) {}
+  constructor(
+    private readonly anthropicService: AnthropicService,
+    private readonly quotaService: QuotaService,
+  ) {}
 
   async extractExpenseData(
     transcript: string,
@@ -56,6 +60,11 @@ Reglas:
 
 Responde SOLO con el JSON, sin texto adicional.`;
 
+    if (userId) {
+      await this.quotaService.assertWithinQuota(userId, {
+        feature: 'voice_expense',
+      });
+    }
     const response = await this.anthropicService.sendMessage(prompt, [], undefined, {
       userId,
       scope: 'user',

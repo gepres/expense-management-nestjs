@@ -10,6 +10,7 @@ import anthropicConfig from './config/anthropic.config';
 import cloudinaryConfig from './config/cloudinary.config';
 import openaiConfig from './config/openai.config';
 import aiPricingConfig from './config/ai-pricing.config';
+import aiQuotaConfig from './config/ai-quota.config';
 import { FirebaseModule } from './modules/firebase/firebase.module';
 import { AnthropicModule } from './modules/anthropic/anthropic.module';
 import { OpenAiModule } from './modules/openai/openai.module';
@@ -47,6 +48,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
         cloudinaryConfig,
         openaiConfig,
         aiPricingConfig,
+        aiQuotaConfig,
       ],
     }),
     ScheduleModule.forRoot(),
