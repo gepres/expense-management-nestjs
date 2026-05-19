@@ -9,9 +9,7 @@ import { registerAs } from '@nestjs/config';
  * Todo configurable por env. Defaults razonables para los modelos actuales.
  */
 export default registerAs('aiPricing', () => ({
-  anthropicInputPer1M: Number(
-    process.env.AI_PRICE_ANTHROPIC_INPUT_PER_1M ?? 3,
-  ),
+  anthropicInputPer1M: Number(process.env.AI_PRICE_ANTHROPIC_INPUT_PER_1M ?? 3),
   anthropicOutputPer1M: Number(
     process.env.AI_PRICE_ANTHROPIC_OUTPUT_PER_1M ?? 15,
   ),

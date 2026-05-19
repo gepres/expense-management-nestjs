@@ -93,10 +93,10 @@ export class LearningLogService {
         .get();
 
       const entries = snap.docs
-        .map(
-          (d) =>
-            ({ id: d.id, ...(d.data() as Omit<LearningLogEntry, 'id'>) }),
-        )
+        .map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<LearningLogEntry, 'id'>),
+        }))
         .filter((e) => !e.deletedAt);
 
       const isCorrection = (e: LearningLogEntry): boolean =>

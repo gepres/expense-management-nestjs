@@ -58,10 +58,7 @@ export class CategoriesController {
   @ApiResponse({ status: 200, description: 'Categoría encontrada' })
   @ApiResponse({ status: 404, description: 'Categoría no encontrada' })
   @ApiResponse({ status: 401, description: 'No autenticado' })
-  async findOne(
-    @CurrentUser() user: FirebaseUser,
-    @Param('id') id: string,
-  ) {
+  async findOne(@CurrentUser() user: FirebaseUser, @Param('id') id: string) {
     return this.categoriesService.findOne(user.uid, id);
   }
 
@@ -100,10 +97,7 @@ export class CategoriesController {
   })
   @ApiResponse({ status: 404, description: 'Categoría no encontrada' })
   @ApiResponse({ status: 401, description: 'No autenticado' })
-  async remove(
-    @CurrentUser() user: FirebaseUser,
-    @Param('id') id: string,
-  ) {
+  async remove(@CurrentUser() user: FirebaseUser, @Param('id') id: string) {
     await this.categoriesService.remove(user.uid, id);
     return { success: true };
   }
@@ -136,7 +130,10 @@ export class CategoriesController {
     status: 200,
     description: 'Subcategoría actualizada exitosamente',
   })
-  @ApiResponse({ status: 404, description: 'Categoría o subcategoría no encontrada' })
+  @ApiResponse({
+    status: 404,
+    description: 'Categoría o subcategoría no encontrada',
+  })
   @ApiResponse({ status: 401, description: 'No autenticado' })
   async updateSubcategory(
     @CurrentUser() user: FirebaseUser,
@@ -158,7 +155,10 @@ export class CategoriesController {
     status: 200,
     description: 'Subcategoría eliminada exitosamente',
   })
-  @ApiResponse({ status: 404, description: 'Categoría o subcategoría no encontrada' })
+  @ApiResponse({
+    status: 404,
+    description: 'Categoría o subcategoría no encontrada',
+  })
   @ApiResponse({ status: 401, description: 'No autenticado' })
   async removeSubcategory(
     @CurrentUser() user: FirebaseUser,

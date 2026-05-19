@@ -1,8 +1,23 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
 import { ShortcutsService } from './shortcuts.service';
 import { CreateShortcutDto } from './dto/create-shortcut.dto';
 import { UpdateShortcutDto } from './dto/update-shortcut.dto';
-import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 
 @ApiTags('Shortcuts')
@@ -38,7 +53,11 @@ export class ShortcutsController {
   @ApiOperation({ summary: 'Actualizar un atajo' })
   @ApiResponse({ status: 200, description: 'Atajo actualizado.' })
   @ApiResponse({ status: 404, description: 'Atajo no encontrado.' })
-  update(@Req() req: any, @Param('id') id: string, @Body() updateShortcutDto: UpdateShortcutDto) {
+  update(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() updateShortcutDto: UpdateShortcutDto,
+  ) {
     return this.shortcutsService.update(req.user.uid, id, updateShortcutDto);
   }
 

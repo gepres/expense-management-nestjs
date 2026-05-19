@@ -14,10 +14,7 @@ import { Timestamp } from 'firebase-admin/firestore';
  * en el general del mes siguiente.
  */
 
-export type PresupuestoBucket =
-  | 'general'
-  | 'efectivo'
-  | string; // categoria real (alimentacion, transporte, …) — string libre
+export type PresupuestoBucket = 'general' | 'efectivo' | string; // categoria real (alimentacion, transporte, …) — string libre
 
 export interface PresupuestoDocument {
   userId: string;
@@ -35,7 +32,8 @@ export interface PresupuestoDocument {
   updatedAt: Timestamp;
 }
 
-export interface Presupuesto extends Omit<PresupuestoDocument, 'createdAt' | 'updatedAt'> {
+export interface Presupuesto
+  extends Omit<PresupuestoDocument, 'createdAt' | 'updatedAt'> {
   id: string;
   createdAt: string;
   updatedAt: string;

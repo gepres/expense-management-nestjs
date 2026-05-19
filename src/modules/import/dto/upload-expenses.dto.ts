@@ -1,7 +1,9 @@
 import {
   IsArray,
   IsInt,
+  IsNotEmpty,
   IsOptional,
+  IsString,
   Min,
   Max,
   ValidateNested,
@@ -19,6 +21,16 @@ export class UploadExpensesDto {
   @ValidateNested({ each: true })
   @Type(() => ImportExpenseDto)
   expenses: ImportExpenseDto[];
+
+  @ApiProperty({
+    description:
+      'Cuenta destino de TODOS los gastos importados (multi-cuenta, Opción B). ' +
+      'Su saldo se descuenta atómicamente y la moneda de la cuenta se aplica a los gastos.',
+    example: 'acc_abc123',
+  })
+  @IsString()
+  @IsNotEmpty()
+  accountId: string;
 
   @ApiPropertyOptional({
     description: 'Tamaño del lote para inserción (50-500)',

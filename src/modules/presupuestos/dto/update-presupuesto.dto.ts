@@ -6,5 +6,10 @@ import { CreatePresupuestoDto } from './create-presupuesto.dto';
  * presupuesto: si el usuario quiere cambiarlos, debe borrar y crear uno nuevo.
  */
 export class UpdatePresupuestoDto extends PartialType(
-  OmitType(CreatePresupuestoDto, ['accountId', 'mes', 'bucket', 'moneda'] as const),
+  OmitType(CreatePresupuestoDto, [
+    'accountId',
+    'mes',
+    'bucket',
+    'moneda',
+  ] as const),
 ) {}

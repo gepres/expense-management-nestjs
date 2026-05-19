@@ -105,7 +105,10 @@ export class CashMovementsController {
   })
   @ApiResponse({ status: 201, description: 'Reverso creado' })
   @ApiResponse({ status: 404, description: 'Movimiento no encontrado' })
-  @ApiResponse({ status: 409, description: 'Ya fue revertido o no se puede revertir' })
+  @ApiResponse({
+    status: 409,
+    description: 'Ya fue revertido o no se puede revertir',
+  })
   revert(@CurrentUser() user: FirebaseUser, @Param('id') id: string) {
     return this.service.revert(user.uid, id);
   }

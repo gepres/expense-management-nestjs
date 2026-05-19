@@ -74,7 +74,10 @@ export class CreateGastoProgramadoDto {
   @IsIn(FRECUENCIAS)
   frecuencia: FrecuenciaProgramado;
 
-  @ApiPropertyOptional({ example: 5, description: '0-6 si semanal, 1-31 si mensual' })
+  @ApiPropertyOptional({
+    example: 5,
+    description: '0-6 si semanal, 1-31 si mensual',
+  })
   @IsOptional()
   @IsInt()
   @Min(0)
@@ -86,7 +89,10 @@ export class CreateGastoProgramadoDto {
   @IsBoolean()
   ultimoDiaDelMes?: boolean;
 
-  @ApiPropertyOptional({ example: 10, description: 'Solo si frecuencia=personalizada' })
+  @ApiPropertyOptional({
+    example: 10,
+    description: 'Solo si frecuencia=personalizada',
+  })
   @IsOptional()
   @IsInt()
   @Min(1)
@@ -100,7 +106,10 @@ export class CreateGastoProgramadoDto {
   @IsDateString()
   fechaUnica?: string;
 
-  @ApiProperty({ example: '12:00', description: 'HH:mm en zona local del usuario' })
+  @ApiProperty({
+    example: '12:00',
+    description: 'HH:mm en zona local del usuario',
+  })
   @IsString()
   @Matches(/^([01]?\d|2[0-3]):[0-5]\d$/, {
     message: 'hora debe tener formato HH:mm',

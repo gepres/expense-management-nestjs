@@ -235,9 +235,7 @@ export class CategoriesService {
 
     await categoryRef.delete();
 
-    this.logger.log(
-      `Deleted category ${categoryId} for user ${userId}`,
-    );
+    this.logger.log(`Deleted category ${categoryId} for user ${userId}`);
   }
 
   async getCategoryNames(userId: string): Promise<string[]> {

@@ -11,12 +11,13 @@ export class WhatsappService {
   constructor(private configService: ConfigService) {
     const accountSid = this.configService.get<string>('TWILIO_ACCOUNT_SID');
     const authToken = this.configService.get<string>('TWILIO_AUTH_TOKEN');
-    this.whatsappNumber = this.configService.get<string>('TWILIO_WHATSAPP_NUMBER') || '';
-    
+    this.whatsappNumber =
+      this.configService.get<string>('TWILIO_WHATSAPP_NUMBER') || '';
+
     if (!accountSid || !authToken) {
       this.logger.error(
         'Twilio credentials (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) are required but not found in environment variables. ' +
-        'Please configure them in your Vercel project settings or .env file.'
+          'Please configure them in your Vercel project settings or .env file.',
       );
       // Don't throw error to allow app to start, but log clearly
       // The sendMessage method will handle the error gracefully
@@ -34,13 +35,15 @@ export class WhatsappService {
 
   async sendMessage(to: string, message: string) {
     if (!this.twilioClient) {
-      const errorMsg = 'Twilio client not initialized. Please configure TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in environment variables.';
+      const errorMsg =
+        'Twilio client not initialized. Please configure TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in environment variables.';
       this.logger.error(errorMsg);
       throw new Error(errorMsg);
     }
 
     if (!this.whatsappNumber) {
-      const errorMsg = 'TWILIO_WHATSAPP_NUMBER not configured in environment variables.';
+      const errorMsg =
+        'TWILIO_WHATSAPP_NUMBER not configured in environment variables.';
       this.logger.error(errorMsg);
       throw new Error(errorMsg);
     }

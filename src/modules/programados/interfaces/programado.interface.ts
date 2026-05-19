@@ -59,7 +59,13 @@ export interface GastoProgramadoDocument {
 export interface GastoProgramado
   extends Omit<
     GastoProgramadoDocument,
-    'fechaInicio' | 'fechaFin' | 'fechaUnica' | 'proximaEjecucion' | 'ultimaEjecucion' | 'createdAt' | 'updatedAt'
+    | 'fechaInicio'
+    | 'fechaFin'
+    | 'fechaUnica'
+    | 'proximaEjecucion'
+    | 'ultimaEjecucion'
+    | 'createdAt'
+    | 'updatedAt'
   > {
   id: string;
   fechaInicio: string;
@@ -82,15 +88,15 @@ export interface TransferenciaProgramadaDocument {
   cuentaOrigenId: string;
   cuentaDestinoId: string;
   monto: number;
-  moneda: string;            // moneda de la cuenta origen
+  moneda: string; // moneda de la cuenta origen
   /**
    * Moneda de la cuenta destino. Si difiere de `moneda` → cross-currency:
    * el cron usa `exchangeRate` (o consulta API si `usarTasaActual: true`)
    * y guarda `amountConverted` en el doc `transfers` generado.
    */
   monedaDestino?: string;
-  exchangeRate?: number;      // tasa fija configurada al crear (modo default)
-  usarTasaActual?: boolean;   // si true → ignora exchangeRate y consulta API
+  exchangeRate?: number; // tasa fija configurada al crear (modo default)
+  usarTasaActual?: boolean; // si true → ignora exchangeRate y consulta API
   descripcion?: string;
 
   // Schedule (idéntico a GastoProgramadoDocument)

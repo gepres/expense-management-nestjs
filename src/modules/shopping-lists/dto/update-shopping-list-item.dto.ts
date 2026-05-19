@@ -2,7 +2,10 @@ import { IsString, IsNumber, IsOptional, IsBoolean } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateShoppingListItemDto {
-  @ApiPropertyOptional({ description: 'Nombre del producto', example: 'Pan Integral' })
+  @ApiPropertyOptional({
+    description: 'Nombre del producto',
+    example: 'Pan Integral',
+  })
   @IsOptional()
   @IsString()
   name?: string;
@@ -17,17 +20,20 @@ export class UpdateShoppingListItemDto {
   @IsNumber()
   quantity?: number;
 
-  @ApiPropertyOptional({ description: 'Precio unitario', example: 5.50 })
+  @ApiPropertyOptional({ description: 'Precio unitario', example: 5.5 })
   @IsOptional()
   @IsNumber()
   unitPrice?: number;
 
-  @ApiPropertyOptional({ description: 'Monto total', example: 11.00 })
+  @ApiPropertyOptional({ description: 'Monto total', example: 11.0 })
   @IsOptional()
   @IsNumber()
   amount?: number;
 
-  @ApiPropertyOptional({ description: 'Categoría del producto', example: 'Panadería' })
+  @ApiPropertyOptional({
+    description: 'Categoría del producto',
+    example: 'Panadería',
+  })
   @IsOptional()
   @IsString()
   category?: string;

@@ -23,8 +23,9 @@ export class ImageProcessorService {
    */
   validateImage(file: Express.Multer.File): void {
     const maxSize = this.configService.get<number>('MAX_FILE_SIZE') || 5242880; // 5MB
-    const allowedTypes = this.configService.get<string>('ALLOWED_IMAGE_TYPES')?.split(',') ||
-      ['image/jpeg', 'image/png', 'image/webp'];
+    const allowedTypes = this.configService
+      .get<string>('ALLOWED_IMAGE_TYPES')
+      ?.split(',') || ['image/jpeg', 'image/png', 'image/webp'];
 
     if (!allowedTypes.includes(file.mimetype)) {
       const types = allowedTypes.join(', ');
@@ -40,7 +41,9 @@ export class ImageProcessorService {
       );
     }
 
-    this.logger.log(`Imagen validada: ${file.originalname} (${file.size} bytes)`);
+    this.logger.log(
+      `Imagen validada: ${file.originalname} (${file.size} bytes)`,
+    );
   }
 
   /**

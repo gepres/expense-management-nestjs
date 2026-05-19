@@ -123,7 +123,10 @@ export class PaymentMethodsService {
     })) as PaymentMethod[];
   }
 
-  async findOne(userId: string, paymentMethodId: string): Promise<PaymentMethod> {
+  async findOne(
+    userId: string,
+    paymentMethodId: string,
+  ): Promise<PaymentMethod> {
     const firestore = this.firebaseService.getFirestore();
     const paymentMethodRef = firestore
       .collection('users')

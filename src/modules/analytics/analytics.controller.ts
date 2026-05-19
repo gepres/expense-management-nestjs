@@ -20,7 +20,10 @@ import { RequirePro } from '../../common/decorators/require-pro.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { FirebaseUser } from '../../common/interfaces/firebase-user.interface';
 import { AnalyticsService } from './analytics.service';
-import { AnalyticsQueryDto, ExportAnalyticsDto } from './dto/analytics-query.dto';
+import {
+  AnalyticsQueryDto,
+  ExportAnalyticsDto,
+} from './dto/analytics-query.dto';
 import { AiInsightsDto } from './dto/ai-insights.dto';
 import { AiAskDto } from './dto/ai-ask.dto';
 import { AiRoastDto } from './dto/ai-roast.dto';

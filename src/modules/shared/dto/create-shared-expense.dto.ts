@@ -1,4 +1,10 @@
-import { IsNumber, IsNotEmpty, IsString, IsOptional, IsArray } from 'class-validator';
+import {
+  IsNumber,
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  IsArray,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateSharedExpenseDto {
@@ -32,7 +38,10 @@ export class CreateSharedExpenseDto {
   @IsString()
   time?: string;
 
-  @ApiPropertyOptional({ example: 'userId123', description: 'Si no se especifica, se usa el usuario actual' })
+  @ApiPropertyOptional({
+    example: 'userId123',
+    description: 'Si no se especifica, se usa el usuario actual',
+  })
   @IsOptional()
   @IsString()
   paidBy?: string;

@@ -29,15 +29,19 @@ export class PaymentMethodsController {
   constructor(private readonly paymentMethodsService: PaymentMethodsService) {}
 
   @Post()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Crear método de pago personalizado',
-    description: 'Crea un nuevo método de pago personalizado para el usuario. Los métodos predeterminados (Efectivo, Tarjeta de Crédito, etc.) ya están disponibles automáticamente.'
+    description:
+      'Crea un nuevo método de pago personalizado para el usuario. Los métodos predeterminados (Efectivo, Tarjeta de Crédito, etc.) ya están disponibles automáticamente.',
   })
   @ApiResponse({
     status: 201,
     description: 'Método de pago creado exitosamente',
   })
-  @ApiResponse({ status: 400, description: 'El método de pago ya existe o los datos son inválidos' })
+  @ApiResponse({
+    status: 400,
+    description: 'El método de pago ya existe o los datos son inválidos',
+  })
   @ApiResponse({ status: 401, description: 'No autenticado' })
   async create(
     @CurrentUser() user: FirebaseUser,
@@ -49,26 +53,28 @@ export class PaymentMethodsController {
   @Get()
   @ApiOperation({
     summary: 'Listar todos los métodos de pago disponibles',
-    description: 'Obtiene la lista completa de métodos de pago del usuario, incluyendo tanto los predeterminados del sistema como los personalizados creados por el usuario.'
+    description:
+      'Obtiene la lista completa de métodos de pago del usuario, incluyendo tanto los predeterminados del sistema como los personalizados creados por el usuario.',
   })
-  @ApiResponse({ status: 200, description: 'Lista de métodos de pago obtenida exitosamente' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de métodos de pago obtenida exitosamente',
+  })
   @ApiResponse({ status: 401, description: 'No autenticado' })
   async findAll(@CurrentUser() user: FirebaseUser) {
     return this.paymentMethodsService.findAll(user.uid);
   }
 
   @Get(':id')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Obtener detalles de un método de pago',
-    description: 'Obtiene la información detallada de un método de pago específico por su ID.'
+    description:
+      'Obtiene la información detallada de un método de pago específico por su ID.',
   })
   @ApiResponse({ status: 200, description: 'Método de pago encontrado' })
   @ApiResponse({ status: 404, description: 'Método de pago no encontrado' })
   @ApiResponse({ status: 401, description: 'No autenticado' })
-  async findOne(
-    @CurrentUser() user: FirebaseUser,
-    @Param('id') id: string,
-  ) {
+  async findOne(@CurrentUser() user: FirebaseUser, @Param('id') id: string) {
     return this.paymentMethodsService.findOne(user.uid, id);
   }
 
@@ -112,10 +118,7 @@ export class PaymentMethodsController {
   })
   @ApiResponse({ status: 404, description: 'Método de pago no encontrado' })
   @ApiResponse({ status: 401, description: 'No autenticado' })
-  async remove(
-    @CurrentUser() user: FirebaseUser,
-    @Param('id') id: string,
-  ) {
+  async remove(@CurrentUser() user: FirebaseUser, @Param('id') id: string) {
     await this.paymentMethodsService.remove(user.uid, id);
     return { success: true };
   }

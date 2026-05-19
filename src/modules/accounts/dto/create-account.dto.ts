@@ -28,7 +28,8 @@ export class CreateAccountDto {
 
   @ApiPropertyOptional({
     example: 'BCP',
-    description: 'Nombre del banco (libre). Solo aplica si type=bank o savings.',
+    description:
+      'Nombre del banco (libre). Solo aplica si type=bank o savings.',
   })
   @IsOptional()
   @IsString()
@@ -37,7 +38,8 @@ export class CreateAccountDto {
 
   @ApiProperty({
     example: 'PEN',
-    description: 'Código ISO de la moneda. Debe existir en users/{uid}/currencies.',
+    description:
+      'Código ISO de la moneda. Debe existir en users/{uid}/currencies.',
   })
   @IsString()
   @MinLength(3)
@@ -66,7 +68,8 @@ export class CreateAccountDto {
 
   @ApiPropertyOptional({
     example: 200,
-    description: 'Saldo inicial en efectivo (retirado de esta cuenta). Default 0.',
+    description:
+      'Saldo inicial en efectivo (retirado de esta cuenta). Default 0.',
   })
   @IsOptional()
   @IsNumber()

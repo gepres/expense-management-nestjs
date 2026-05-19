@@ -17,6 +17,14 @@ export class UpdateQuotaConfigDto {
   @Min(0)
   proTokens: number;
 
+  @ApiProperty({
+    description: 'Tokens/mes para el trial promocional',
+    example: 80000,
+  })
+  @IsInt()
+  @Min(0)
+  promocionalTokens: number;
+
   @ApiProperty({ description: 'Imágenes IA/mes para rol standard', example: 0 })
   @IsInt()
   @Min(0)
@@ -26,6 +34,23 @@ export class UpdateQuotaConfigDto {
   @IsInt()
   @Min(0)
   proImages: number;
+
+  @ApiProperty({
+    description: 'Imágenes IA/mes para el trial promocional',
+    example: 2,
+  })
+  @IsInt()
+  @Min(0)
+  promocionalImages: number;
+
+  @ApiProperty({
+    description: 'Duración por defecto del trial promocional (días)',
+    example: 15,
+  })
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  promocionalDays: number;
 
   @ApiProperty({ description: 'Umbral de aviso (%)', example: 80 })
   @IsInt()

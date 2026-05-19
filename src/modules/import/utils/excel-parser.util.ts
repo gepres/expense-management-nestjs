@@ -9,7 +9,7 @@ export class ExcelParserUtil {
   static parseExcelFile(buffer: Buffer): ImportExpenseDto[] {
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
-    
+
     if (!sheetName) {
       throw new Error('El archivo Excel está vacío');
     }
@@ -30,13 +30,31 @@ export class ExcelParserUtil {
     const fieldMappings = {
       fecha: ['fecha', 'date', 'dia', 'day'],
       monto: ['monto', 'amount', 'precio', 'price', 'total'],
-      concepto: ['concepto', 'concept', 'descripcion', 'description', 'detalle'],
+      concepto: [
+        'concepto',
+        'concept',
+        'descripcion',
+        'description',
+        'detalle',
+      ],
       categoria: ['categoria', 'category', 'tipo', 'type'],
       subcategoria: ['subcategoria', 'subcategory'],
-      metodoPago: ['metodoPago', 'metodo_pago', 'paymentMethod', 'payment_method', 'pago'],
+      metodoPago: [
+        'metodoPago',
+        'metodo_pago',
+        'paymentMethod',
+        'payment_method',
+        'pago',
+      ],
       moneda: ['moneda', 'currency', 'divisa'],
       comercio: ['comercio', 'merchant', 'tienda', 'store', 'establecimiento'],
-      descripcion: ['descripcion', 'description', 'notas', 'notes', 'comentarios'],
+      descripcion: [
+        'descripcion',
+        'description',
+        'notas',
+        'notes',
+        'comentarios',
+      ],
     };
 
     const normalized: any = {};
@@ -44,7 +62,8 @@ export class ExcelParserUtil {
     // Normalizar cada campo
     for (const [targetField, possibleNames] of Object.entries(fieldMappings)) {
       for (const name of possibleNames) {
-        const value = row[name] || row[name.toLowerCase()] || row[name.toUpperCase()];
+        const value =
+          row[name] || row[name.toLowerCase()] || row[name.toUpperCase()];
         if (value !== undefined && value !== null && value !== '') {
           normalized[targetField] = value;
           break;
@@ -125,7 +144,7 @@ export class ExcelParserUtil {
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    
+
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
     // Definir columnas con headers
@@ -136,7 +155,6 @@ export class ExcelParserUtil {
       { header: 'categoria', key: 'categoria', width: 15 },
       { header: 'subcategoria', key: 'subcategoria', width: 15 },
       { header: 'metodoPago', key: 'metodoPago', width: 15 },
-      { header: 'moneda', key: 'moneda', width: 8 },
       { header: 'comercio', key: 'comercio', width: 25 },
       { header: 'descripcion', key: 'descripcion', width: 30 },
     ];
@@ -153,48 +171,44 @@ export class ExcelParserUtil {
     const exampleData = [
       {
         fecha: formatDate(today),
-        monto: 45.50,
+        monto: 45.5,
         concepto: 'Almuerzo ejecutivo',
         categoria: 'Alimentación',
         subcategoria: 'Restaurantes',
         metodoPago: 'Tarjeta Crédito',
-        moneda: 'PEN',
         comercio: 'Restaurante El Buen Sabor',
         descripcion: 'Almuerzo con cliente',
       },
       {
         fecha: formatDate(yesterday),
-        monto: 120.00,
+        monto: 120.0,
         concepto: 'Combustible',
         categoria: 'Transporte',
         subcategoria: 'Gasolina',
         metodoPago: 'Efectivo',
-        moneda: 'PEN',
         comercio: 'Grifo Primax',
         descripcion: 'Llenado de tanque',
       },
       {
         fecha: formatDate(yesterday),
-        monto: 29.90,
+        monto: 29.9,
         concepto: 'Suscripción Netflix',
         categoria: 'Entretenimiento',
         subcategoria: 'Streaming',
         metodoPago: 'Tarjeta Débito',
-        moneda: 'PEN',
         comercio: 'Netflix',
         descripcion: 'Mensualidad',
       },
       {
         fecha: formatDate(today),
-        monto: 15.00,
+        monto: 15.0,
         concepto: 'Taxi a oficina',
         categoria: 'Transporte',
         subcategoria: 'Taxi',
         metodoPago: 'Yape',
-        moneda: 'PEN',
         comercio: 'Uber',
         descripcion: '',
-      }
+      },
     ];
 
     worksheet.addRows(exampleData);

@@ -22,9 +22,7 @@ import type { FirebaseUser } from '../../common/interfaces/firebase-user.interfa
 @Controller('programados/transferencias')
 @UseGuards(FirebaseAuthGuard)
 export class TransferenciasProgramadasController {
-  constructor(
-    private readonly service: TransferenciasProgramadasService,
-  ) {}
+  constructor(private readonly service: TransferenciasProgramadasService) {}
 
   @Post()
   @ApiOperation({ summary: 'Crear transferencia programada (recurrente)' })
@@ -70,10 +68,7 @@ export class TransferenciasProgramadasController {
     description:
       'Devuelve hasta 100 ejecuciones (auditoría del cron) ordenadas por fechaEjecutada descendente.',
   })
-  findEjecuciones(
-    @CurrentUser() user: FirebaseUser,
-    @Param('id') id: string,
-  ) {
+  findEjecuciones(@CurrentUser() user: FirebaseUser, @Param('id') id: string) {
     return this.service.findEjecuciones(user.uid, id);
   }
 

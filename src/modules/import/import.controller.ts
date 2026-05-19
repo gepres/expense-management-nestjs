@@ -60,7 +60,8 @@ export class ImportController {
         format: {
           type: 'string',
           enum: ['excel', 'json'],
-          description: 'Formato del archivo (opcional, se detecta automáticamente)',
+          description:
+            'Formato del archivo (opcional, se detecta automáticamente)',
         },
       },
     },
@@ -84,7 +85,10 @@ export class ImportController {
       },
     },
   })
-  @ApiResponse({ status: 400, description: 'Archivo inválido o demasiado grande' })
+  @ApiResponse({
+    status: 400,
+    description: 'Archivo inválido o demasiado grande',
+  })
   async validateFile(
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: ValidateFileDto,
@@ -126,12 +130,13 @@ export class ImportController {
     },
   })
   @ApiResponse({ status: 400, description: 'Datos inválidos' })
-  async analyzeExpenses(
-    @Req() req: any,
-    @Body() dto: AnalyzeExpensesDto,
-  ) {
+  async analyzeExpenses(@Req() req: any, @Body() dto: AnalyzeExpensesDto) {
     const userId = req.user.uid;
-    return this.importService.analyzeExpenses(userId, dto.expenses, dto.options);
+    return this.importService.analyzeExpenses(
+      userId,
+      dto.expenses,
+      dto.options,
+    );
   }
 
   /**
@@ -160,12 +165,14 @@ export class ImportController {
     },
   })
   @ApiResponse({ status: 400, description: 'Datos inválidos' })
-  async uploadExpenses(
-    @Req() req: any,
-    @Body() dto: UploadExpensesDto,
-  ) {
+  async uploadExpenses(@Req() req: any, @Body() dto: UploadExpensesDto) {
     const userId = req.user.uid;
-    return this.importService.uploadExpenses(userId, dto.expenses, dto.batchSize);
+    return this.importService.uploadExpenses(
+      userId,
+      dto.expenses,
+      dto.accountId,
+      dto.batchSize,
+    );
   }
 
   /**
@@ -258,7 +265,8 @@ export class ImportController {
 
     const mime = file.mimetype;
     if (
-      mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      mime ===
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
       mime === 'application/vnd.ms-excel'
     ) {
       return 'excel';

@@ -17,7 +17,11 @@ export class UsersService {
     photoURL?: string,
   ): Promise<UserProfile> {
     const firestore = this.firebaseService.getFirestore();
-    const profileRef = firestore.collection('users').doc(userId).collection('profile').doc('data');
+    const profileRef = firestore
+      .collection('users')
+      .doc(userId)
+      .collection('profile')
+      .doc('data');
 
     const profileDoc = await profileRef.get();
 
@@ -48,7 +52,11 @@ export class UsersService {
 
   async getProfile(userId: string): Promise<UserProfile> {
     const firestore = this.firebaseService.getFirestore();
-    const profileRef = firestore.collection('users').doc(userId).collection('profile').doc('data');
+    const profileRef = firestore
+      .collection('users')
+      .doc(userId)
+      .collection('profile')
+      .doc('data');
 
     const profileDoc = await profileRef.get();
 
@@ -64,7 +72,11 @@ export class UsersService {
     updateData: UpdateProfileDto,
   ): Promise<UserProfile> {
     const firestore = this.firebaseService.getFirestore();
-    const profileRef = firestore.collection('users').doc(userId).collection('profile').doc('data');
+    const profileRef = firestore
+      .collection('users')
+      .doc(userId)
+      .collection('profile')
+      .doc('data');
 
     const profileDoc = await profileRef.get();
 

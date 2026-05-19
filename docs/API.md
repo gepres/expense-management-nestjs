@@ -118,6 +118,13 @@ Detalle de pruebas y respuestas: [RECEIPTS_TESTING.md](./RECEIPTS_TESTING.md).
 | POST | `/import/upload` | 🔒 | Importación masiva definitiva |
 | GET | `/import/history` | 🔒 | Historial de importaciones |
 
+> **Multi-cuenta (Opción B):** `POST /import/upload` requiere `accountId`
+> (cuenta destino de TODO el lote). El backend valida la cuenta, asocia
+> cada gasto a ella, **fuerza la moneda de la cuenta** y descuenta su saldo
+> (efectivo→`cashBalance`, resto→`bankBalance`) en una transacción. La
+> columna `moneda` del template fue **removida**: ya no se controla por
+> fila (si llega en un archivo antiguo, se ignora).
+
 ## Accounts · `/api/accounts`
 
 | Método | Ruta | Auth | Descripción |

@@ -28,7 +28,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
           ? exceptionResponse
           : (exceptionResponse as any).message || 'Internal server error',
       error:
-        typeof exceptionResponse === 'object' && (exceptionResponse as any).error
+        typeof exceptionResponse === 'object' &&
+        (exceptionResponse as any).error
           ? (exceptionResponse as any).error
           : exception.name,
     };

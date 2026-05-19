@@ -1,4 +1,10 @@
-import { IsString, IsNumber, IsOptional, IsDateString, Min } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  IsOptional,
+  IsDateString,
+  Min,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ImportExpenseDto {
@@ -11,7 +17,7 @@ export class ImportExpenseDto {
 
   @ApiProperty({
     description: 'Monto del gasto (debe ser positivo)',
-    example: 45.50,
+    example: 45.5,
   })
   @IsNumber()
   @Min(0.01)
@@ -49,8 +55,12 @@ export class ImportExpenseDto {
   metodoPago?: string;
 
   @ApiPropertyOptional({
-    description: 'Código de moneda (ISO 4217)',
+    description:
+      'IGNORADO en la importación. La moneda la define la cuenta destino ' +
+      'elegida en el wizard (multi-cuenta). Se conserva el campo solo por ' +
+      'compatibilidad con archivos antiguos.',
     example: 'PEN',
+    deprecated: true,
   })
   @IsOptional()
   @IsString()

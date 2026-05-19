@@ -144,7 +144,10 @@ export class ProgramadosService {
   }
 
   /** Verifica que la cuenta exista y pertenezca al usuario. */
-  private async verificarCuenta(userId: string, accountId: string): Promise<AccountDocument> {
+  private async verificarCuenta(
+    userId: string,
+    accountId: string,
+  ): Promise<AccountDocument> {
     const snap = await this.firebaseService
       .getFirestore()
       .collection(ACCOUNTS)
@@ -220,12 +223,16 @@ export class ProgramadosService {
     if (dto.subcategoria) doc.subcategoria = dto.subcategoria;
     if (dto.tags?.length) doc.tags = dto.tags;
     if (dto.diaEjecucion !== undefined) doc.diaEjecucion = dto.diaEjecucion;
-    if (dto.ultimoDiaDelMes !== undefined) doc.ultimoDiaDelMes = dto.ultimoDiaDelMes;
+    if (dto.ultimoDiaDelMes !== undefined)
+      doc.ultimoDiaDelMes = dto.ultimoDiaDelMes;
     if (dto.intervaloDias !== undefined) doc.intervaloDias = dto.intervaloDias;
     if (fechaUnica) doc.fechaUnica = Timestamp.fromDate(fechaUnica);
     if (fechaFin) doc.fechaFin = Timestamp.fromDate(fechaFin);
 
-    const ref = this.firebaseService.getFirestore().collection(COLLECTION).doc();
+    const ref = this.firebaseService
+      .getFirestore()
+      .collection(COLLECTION)
+      .doc();
     await ref.set(doc);
 
     this.logger.log(
@@ -272,12 +279,16 @@ export class ProgramadosService {
     id: string,
     dto: UpdateGastoProgramadoDto,
   ): Promise<GastoProgramado> {
-    const ref = this.firebaseService.getFirestore().collection(COLLECTION).doc(id);
+    const ref = this.firebaseService
+      .getFirestore()
+      .collection(COLLECTION)
+      .doc(id);
     const snap = await ref.get();
     if (!snap.exists) throw new NotFoundException('Programación no encontrada');
 
     const before = snap.data() as GastoProgramadoDocument;
-    if (before.userId !== userId) throw new ForbiddenException('Acceso denegado');
+    if (before.userId !== userId)
+      throw new ForbiddenException('Acceso denegado');
 
     // Si cambian campos del schedule, validar y recalcular próxima.
     const merged = {
@@ -350,9 +361,12 @@ export class ProgramadosService {
     set('hora', dto.hora);
     set('zonaHoraria', dto.zonaHoraria);
 
-    if (dto.fechaInicio) update.fechaInicio = Timestamp.fromDate(new Date(dto.fechaInicio));
-    if (dto.fechaFin) update.fechaFin = Timestamp.fromDate(new Date(dto.fechaFin));
-    if (dto.fechaUnica) update.fechaUnica = Timestamp.fromDate(new Date(dto.fechaUnica));
+    if (dto.fechaInicio)
+      update.fechaInicio = Timestamp.fromDate(new Date(dto.fechaInicio));
+    if (dto.fechaFin)
+      update.fechaFin = Timestamp.fromDate(new Date(dto.fechaFin));
+    if (dto.fechaUnica)
+      update.fechaUnica = Timestamp.fromDate(new Date(dto.fechaUnica));
 
     if (dto.activo !== undefined) update.activo = dto.activo;
 
@@ -365,7 +379,10 @@ export class ProgramadosService {
 
     await ref.update(update);
     const updated = await ref.get();
-    return this.toGastoProgramado(id, updated.data() as GastoProgramadoDocument);
+    return this.toGastoProgramado(
+      id,
+      updated.data() as GastoProgramadoDocument,
+    );
   }
 
   // ==========================================================================
@@ -373,7 +390,10 @@ export class ProgramadosService {
   // ==========================================================================
 
   async remove(userId: string, id: string): Promise<void> {
-    const ref = this.firebaseService.getFirestore().collection(COLLECTION).doc(id);
+    const ref = this.firebaseService
+      .getFirestore()
+      .collection(COLLECTION)
+      .doc(id);
     const snap = await ref.get();
     if (!snap.exists) throw new NotFoundException('Programación no encontrada');
     const data = snap.data() as GastoProgramadoDocument;
@@ -437,7 +457,10 @@ export class ProgramadosService {
   // ==========================================================================
 
   /** Devuelve programados activos cuya próxima ejecución es <= ahora. */
-  async findPendientes(ahora: Date, batchLimit = 200): Promise<Array<{ id: string; data: GastoProgramadoDocument }>> {
+  async findPendientes(
+    ahora: Date,
+    batchLimit = 200,
+  ): Promise<Array<{ id: string; data: GastoProgramadoDocument }>> {
     const snap = await this.firebaseService
       .getFirestore()
       .collection(COLLECTION)

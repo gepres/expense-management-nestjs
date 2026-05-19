@@ -1,4 +1,17 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, SetMetadata, Query, Res, StreamableFile } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  SetMetadata,
+  Query,
+  Res,
+  StreamableFile,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { SharedService } from './shared.service';
 import { CreateSharedGroupDto } from './dto/create-shared-group.dto';
@@ -8,7 +21,12 @@ import { CreateSharedExpenseDto } from './dto/create-shared-expense.dto';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { FirebaseUser } from '../../common/interfaces/firebase-user.interface';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiResponse,
+} from '@nestjs/swagger';
 
 @ApiTags('Shared Groups')
 @ApiBearerAuth('firebase-auth')
@@ -19,7 +37,10 @@ export class SharedController {
 
   @Post()
   @ApiOperation({ summary: 'Crear grupo compartido' })
-  create(@CurrentUser() user: FirebaseUser, @Body() createSharedGroupDto: CreateSharedGroupDto) {
+  create(
+    @CurrentUser() user: FirebaseUser,
+    @Body() createSharedGroupDto: CreateSharedGroupDto,
+  ) {
     return this.sharedService.createGroup(user.uid, createSharedGroupDto);
   }
 
@@ -37,7 +58,11 @@ export class SharedController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar grupo' })
-  update(@CurrentUser() user: FirebaseUser, @Param('id') id: string, @Body() updateSharedGroupDto: UpdateSharedGroupDto) {
+  update(
+    @CurrentUser() user: FirebaseUser,
+    @Param('id') id: string,
+    @Body() updateSharedGroupDto: UpdateSharedGroupDto,
+  ) {
     return this.sharedService.updateGroup(user.uid, id, updateSharedGroupDto);
   }
 
@@ -49,7 +74,11 @@ export class SharedController {
 
   @Post(':id/budgets')
   @ApiOperation({ summary: 'Agregar aporte (budget)' })
-  addBudget(@CurrentUser() user: FirebaseUser, @Param('id') groupId: string, @Body() dto: CreateSharedBudgetDto) {
+  addBudget(
+    @CurrentUser() user: FirebaseUser,
+    @Param('id') groupId: string,
+    @Body() dto: CreateSharedBudgetDto,
+  ) {
     return this.sharedService.addBudget(user.uid, groupId, dto);
   }
 
@@ -61,19 +90,32 @@ export class SharedController {
 
   @Patch(':id/budgets/:budgetId')
   @ApiOperation({ summary: 'Actualizar aporte' })
-  updateBudget(@CurrentUser() user: FirebaseUser, @Param('id') groupId: string, @Param('budgetId') budgetId: string, @Body() dto: Partial<CreateSharedBudgetDto>) {
+  updateBudget(
+    @CurrentUser() user: FirebaseUser,
+    @Param('id') groupId: string,
+    @Param('budgetId') budgetId: string,
+    @Body() dto: Partial<CreateSharedBudgetDto>,
+  ) {
     return this.sharedService.updateBudget(user.uid, groupId, budgetId, dto);
   }
 
   @Delete(':id/budgets/:budgetId')
   @ApiOperation({ summary: 'Eliminar aporte' })
-  deleteBudget(@CurrentUser() user: FirebaseUser, @Param('id') groupId: string, @Param('budgetId') budgetId: string) {
+  deleteBudget(
+    @CurrentUser() user: FirebaseUser,
+    @Param('id') groupId: string,
+    @Param('budgetId') budgetId: string,
+  ) {
     return this.sharedService.deleteBudget(user.uid, groupId, budgetId);
   }
 
   @Post(':id/expenses')
   @ApiOperation({ summary: 'Agregar gasto compartido' })
-  addExpense(@CurrentUser() user: FirebaseUser, @Param('id') groupId: string, @Body() dto: CreateSharedExpenseDto) {
+  addExpense(
+    @CurrentUser() user: FirebaseUser,
+    @Param('id') groupId: string,
+    @Body() dto: CreateSharedExpenseDto,
+  ) {
     return this.sharedService.addExpense(user.uid, groupId, dto);
   }
 
@@ -85,13 +127,22 @@ export class SharedController {
 
   @Patch(':id/expenses/:expenseId')
   @ApiOperation({ summary: 'Actualizar gasto' })
-  updateExpense(@CurrentUser() user: FirebaseUser, @Param('id') groupId: string, @Param('expenseId') expenseId: string, @Body() dto: Partial<CreateSharedExpenseDto>) {
+  updateExpense(
+    @CurrentUser() user: FirebaseUser,
+    @Param('id') groupId: string,
+    @Param('expenseId') expenseId: string,
+    @Body() dto: Partial<CreateSharedExpenseDto>,
+  ) {
     return this.sharedService.updateExpense(user.uid, groupId, expenseId, dto);
   }
 
   @Delete(':id/expenses/:expenseId')
   @ApiOperation({ summary: 'Eliminar gasto' })
-  deleteExpense(@CurrentUser() user: FirebaseUser, @Param('id') groupId: string, @Param('expenseId') expenseId: string) {
+  deleteExpense(
+    @CurrentUser() user: FirebaseUser,
+    @Param('id') groupId: string,
+    @Param('expenseId') expenseId: string,
+  ) {
     return this.sharedService.deleteExpense(user.uid, groupId, expenseId);
   }
 
@@ -99,7 +150,10 @@ export class SharedController {
 
   @Post(':id/invitations')
   @ApiOperation({ summary: 'Crear invitación' })
-  createInvitation(@CurrentUser() user: FirebaseUser, @Param('id') groupId: string) {
+  createInvitation(
+    @CurrentUser() user: FirebaseUser,
+    @Param('id') groupId: string,
+  ) {
     return this.sharedService.createInvitation(user.uid, groupId);
   }
 
@@ -114,7 +168,10 @@ export class SharedController {
 
   @Post('invitations/:token/accept')
   @ApiOperation({ summary: 'Aceptar invitación' })
-  acceptInvitation(@CurrentUser() user: FirebaseUser, @Param('token') token: string) {
+  acceptInvitation(
+    @CurrentUser() user: FirebaseUser,
+    @Param('token') token: string,
+  ) {
     return this.sharedService.acceptInvitation(user.uid, token);
   }
 
@@ -122,7 +179,11 @@ export class SharedController {
 
   @Delete(':id/members/:memberId')
   @ApiOperation({ summary: 'Eliminar miembro' })
-  removeMember(@CurrentUser() user: FirebaseUser, @Param('id') groupId: string, @Param('memberId') memberId: string) {
+  removeMember(
+    @CurrentUser() user: FirebaseUser,
+    @Param('id') groupId: string,
+    @Param('memberId') memberId: string,
+  ) {
     return this.sharedService.removeMember(user.uid, groupId, memberId);
   }
 
@@ -142,7 +203,10 @@ export class SharedController {
 
   @Get(':id/settlement')
   @ApiOperation({ summary: 'Liquidación de deudas' })
-  getSettlement(@CurrentUser() user: FirebaseUser, @Param('id') groupId: string) {
+  getSettlement(
+    @CurrentUser() user: FirebaseUser,
+    @Param('id') groupId: string,
+  ) {
     return this.sharedService.getSettlement(user.uid, groupId);
   }
 
@@ -169,11 +233,16 @@ export class SharedController {
     @Query('format') format: 'json' | 'excel' = 'json',
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.sharedService.exportGroupExpenses(user.uid, groupId, format);
+    const result = await this.sharedService.exportGroupExpenses(
+      user.uid,
+      groupId,
+      format,
+    );
 
     if (format === 'excel') {
       res.set({
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="gastos_grupo_${groupId}.xlsx"`,
       });
       return new StreamableFile(result as Buffer);

@@ -59,7 +59,7 @@ export class ExpenseValidatorUtil {
     const expenseDate = new Date(expense.fecha);
     const today = new Date();
     today.setHours(23, 59, 59, 999); // Final del día de hoy
-    
+
     // Añadir 1 día de margen por diferencias de zona horaria
     today.setDate(today.getDate() + 1);
 
@@ -89,7 +89,8 @@ export class ExpenseValidatorUtil {
       errors.push({
         row: rowNumber,
         field: 'monto',
-        message: 'El monto parece excesivamente alto. Verifica que sea correcto.',
+        message:
+          'El monto parece excesivamente alto. Verifica que sea correcto.',
         value: expense.monto,
       });
     }
@@ -104,16 +105,11 @@ export class ExpenseValidatorUtil {
       });
     }
 
-    // Validar código de moneda si está presente
-    const validCurrencies = ['PEN', 'USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY', 'MXN'];
-    if (expense.moneda && !validCurrencies.includes(expense.moneda.toUpperCase())) {
-      errors.push({
-        row: rowNumber,
-        field: 'moneda',
-        message: `Código de moneda no válido. Debe ser uno de: ${validCurrencies.join(', ')}`,
-        value: expense.moneda,
-      });
-    }
+    // Nota: `moneda` ya NO se valida ni controla por fila. Multi-cuenta
+    // (Opción B): la importación va a la cuenta destino elegida en el
+    // wizard y todos los gastos adoptan la moneda de esa cuenta (el
+    // backend la fuerza en uploadExpenses). Si llega `moneda` en el
+    // archivo, se ignora.
 
     return errors;
   }
@@ -128,7 +124,7 @@ export class ExpenseValidatorUtil {
     expenses.forEach((expense, index) => {
       // Crear clave única basada en fecha, monto y concepto
       const key = `${expense.fecha}-${expense.monto}-${expense.concepto.toLowerCase().trim()}`;
-      
+
       if (seen.has(key)) {
         const existingIndices = seen.get(key)!;
         existingIndices.push(index + 2); // +2 para número de fila real
@@ -155,7 +151,7 @@ export class ExpenseValidatorUtil {
     const warnings: string[] = [];
 
     // Contar gastos sin categoría
-    const withoutCategory = expenses.filter(e => !e.categoria).length;
+    const withoutCategory = expenses.filter((e) => !e.categoria).length;
     if (withoutCategory > 0) {
       warnings.push(
         `${withoutCategory} gasto(s) sin categoría. Considera usar la categorización automática con IA.`,
@@ -163,7 +159,7 @@ export class ExpenseValidatorUtil {
     }
 
     // Contar gastos sin método de pago
-    const withoutPaymentMethod = expenses.filter(e => !e.metodoPago).length;
+    const withoutPaymentMethod = expenses.filter((e) => !e.metodoPago).length;
     if (withoutPaymentMethod > 0) {
       warnings.push(
         `${withoutPaymentMethod} gasto(s) sin método de pago especificado.`,
@@ -174,16 +170,18 @@ export class ExpenseValidatorUtil {
     const duplicates = this.detectDuplicates(expenses);
     if (duplicates.length > 0) {
       warnings.push(
-        `Se detectaron ${duplicates.length} grupo(s) de posibles duplicados. Revisa las filas: ${duplicates.map(d => d.join(', ')).join(' | ')}`,
+        `Se detectaron ${duplicates.length} grupo(s) de posibles duplicados. Revisa las filas: ${duplicates.map((d) => d.join(', ')).join(' | ')}`,
       );
     }
 
     // Verificar distribución de fechas
-    const dates = expenses.map(e => new Date(e.fecha));
-    const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
-    const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
-    const daysDiff = Math.floor((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24));
-    
+    const dates = expenses.map((e) => new Date(e.fecha));
+    const minDate = new Date(Math.min(...dates.map((d) => d.getTime())));
+    const maxDate = new Date(Math.max(...dates.map((d) => d.getTime())));
+    const daysDiff = Math.floor(
+      (maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
     if (daysDiff > 365) {
       warnings.push(
         `Los gastos abarcan un rango de ${daysDiff} días (${minDate.toLocaleDateString()} - ${maxDate.toLocaleDateString()}). Verifica que todas las fechas sean correctas.`,

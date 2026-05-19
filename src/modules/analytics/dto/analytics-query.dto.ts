@@ -14,7 +14,12 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
  * Query base de analytics. Usada por `GET /analytics/summary`.
  */
 export class AnalyticsQueryDto {
-  @ApiProperty({ description: 'Mes (1-12)', example: 5, minimum: 1, maximum: 12 })
+  @ApiProperty({
+    description: 'Mes (1-12)',
+    example: 5,
+    minimum: 1,
+    maximum: 12,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)

@@ -54,10 +54,7 @@ export class AnthropicExceptionFilter implements ExceptionFilter {
       }
     }
 
-    this.logger.error(
-      `Anthropic Error: ${code} - ${message}`,
-      exception.stack,
-    );
+    this.logger.error(`Anthropic Error: ${code} - ${message}`, exception.stack);
 
     response.status(status).json({
       statusCode: status,

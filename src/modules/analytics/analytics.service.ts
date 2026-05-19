@@ -8,7 +8,10 @@ import {
   MetricsRoast,
 } from '../anthropic/anthropic.service';
 import { AnalyticsSummary } from './interfaces/analytics.interface';
-import { AnalyticsQueryDto, ExportAnalyticsDto } from './dto/analytics-query.dto';
+import {
+  AnalyticsQueryDto,
+  ExportAnalyticsDto,
+} from './dto/analytics-query.dto';
 import { AiInsightsDto } from './dto/ai-insights.dto';
 import { AiAskDto } from './dto/ai-ask.dto';
 import { AiRoastDto } from './dto/ai-roast.dto';
@@ -65,9 +68,7 @@ export class AnalyticsService {
     const expenses = expensesAll.filter(
       (e) => String(e.moneda || 'PEN') === monedaSel,
     );
-    const prev = prevAll.filter(
-      (e) => String(e.moneda || 'PEN') === monedaSel,
-    );
+    const prev = prevAll.filter((e) => String(e.moneda || 'PEN') === monedaSel);
 
     const desde = startOfMonth(new Date(year, month - 1, 1));
     const hasta = endOfMonth(desde);
@@ -84,10 +85,7 @@ export class AnalyticsService {
     const montos = expenses.map((e) => Number(e.monto) || 0);
     const totalGastado = montos.reduce((a, b) => a + b, 0);
     const numTransacciones = expenses.length;
-    const totalAnterior = prev.reduce(
-      (a, e) => a + (Number(e.monto) || 0),
-      0,
-    );
+    const totalAnterior = prev.reduce((a, e) => a + (Number(e.monto) || 0), 0);
     const diferencia = totalGastado - totalAnterior;
     const diferenciaPorcentaje =
       totalAnterior === 0 ? 0 : (diferencia / totalAnterior) * 100;
@@ -117,9 +115,7 @@ export class AnalyticsService {
           diasTranscurridos === 0 ? 0 : totalGastado / diasTranscurridos,
         gastoMaximo: montos.length ? Math.max(...montos) : 0,
         gastoMinimo: montos.length ? Math.min(...montos) : 0,
-        diasConGasto: new Set(
-          expenses.map((e) => this.toDayKey(e.fecha)),
-        ).size,
+        diasConGasto: new Set(expenses.map((e) => this.toDayKey(e.fecha))).size,
       },
       comparativaMesAnterior: {
         totalAnterior,
@@ -156,7 +152,11 @@ export class AnalyticsService {
   async getAiInsights(
     userId: string,
     dto: AiInsightsDto,
-  ): Promise<MetricsAiResult & { contextUsed: { month: number; year: number; moneda: string } }> {
+  ): Promise<
+    MetricsAiResult & {
+      contextUsed: { month: number; year: number; moneda: string };
+    }
+  > {
     const summary = await this.getSummary(userId, {
       month: dto.month,
       year: dto.year,
@@ -200,7 +200,10 @@ export class AnalyticsService {
   async askAi(
     userId: string,
     dto: AiAskDto,
-  ): Promise<{ respuesta: string; contextUsed: { month: number; year: number; moneda: string } }> {
+  ): Promise<{
+    respuesta: string;
+    contextUsed: { month: number; year: number; moneda: string };
+  }> {
     const summary = await this.getSummary(userId, {
       month: dto.month,
       year: dto.year,
@@ -377,9 +380,7 @@ ${JSON.stringify(
     ).padStart(2, '0')}`;
   }
 
-  private tendencia(
-    pct: number,
-  ): 'creciente' | 'decreciente' | 'estable' {
+  private tendencia(pct: number): 'creciente' | 'decreciente' | 'estable' {
     if (Math.abs(pct) < 5) return 'estable';
     return pct > 0 ? 'creciente' : 'decreciente';
   }
@@ -478,7 +479,9 @@ ${JSON.stringify(
         };
       })
       .filter((t) => t.actual > 0 || t.anterior > 0)
-      .sort((x, y) => Math.abs(y.porcentajeCambio) - Math.abs(x.porcentajeCambio));
+      .sort(
+        (x, y) => Math.abs(y.porcentajeCambio) - Math.abs(x.porcentajeCambio),
+      );
   }
 
   private detectarAnomalias(expenses: RawExpense[]) {

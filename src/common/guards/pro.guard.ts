@@ -8,6 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { FirebaseService } from '../../modules/firebase/firebase.service';
 import { REQUIRE_PRO_KEY } from '../decorators/require-pro.decorator';
+import { isPromoActive } from '../utils/promo.util';
 
 /**
  * Guard de autorización PRO.
@@ -47,17 +48,35 @@ export class ProGuard implements CanActivate {
       throw new ForbiddenException('No autenticado');
     }
 
-    const snap = await this.firebaseService
+    const ref = this.firebaseService
       .getFirestore()
       .collection('users')
-      .doc(uid)
-      .get();
+      .doc(uid);
+    const snap = await ref.get();
+    const data = snap.exists ? snap.data() : undefined;
+    const role: string = (data?.role as string | undefined) ?? 'standard';
 
-    const role: string =
-      (snap.exists ? (snap.data()?.role as string | undefined) : undefined) ??
-      'standard';
+    // El trial promocional vigente tiene acceso PRO. Si venció, se degrada a
+    // 'standard' (best-effort, mismo criterio que QuotaService.getUserRole).
+    let effectiveRole = role;
+    if (role === 'promocional') {
+      if (isPromoActive(data?.promoExpiresAt)) {
+        effectiveRole = 'pro';
+      } else {
+        effectiveRole = 'standard';
+        try {
+          await ref.update({
+            role: 'standard',
+            promoExpiresAt: null,
+            updatedAt: new Date(),
+          });
+        } catch {
+          /* best-effort */
+        }
+      }
+    }
 
-    if (role !== 'pro' && role !== 'admin') {
+    if (effectiveRole !== 'pro' && effectiveRole !== 'admin') {
       this.logger.warn(
         `PRO-gated endpoint denegado para usuario ${uid} (role=${role})`,
       );

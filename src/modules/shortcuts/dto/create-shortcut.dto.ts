@@ -1,4 +1,11 @@
-import { IsString, IsNumber, IsOptional, IsBoolean, IsArray, IsNotEmpty } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  IsOptional,
+  IsBoolean,
+  IsArray,
+  IsNotEmpty,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateShortcutDto {
@@ -36,7 +43,7 @@ export class CreateShortcutDto {
 
   @ApiPropertyOptional({
     description: 'Monto del gasto',
-    example: 15.50,
+    example: 15.5,
   })
   @IsOptional()
   @IsNumber()

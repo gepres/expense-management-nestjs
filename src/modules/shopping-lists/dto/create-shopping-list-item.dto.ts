@@ -12,17 +12,24 @@ export class CreateShoppingListItemDto {
   @IsNumber()
   quantity?: number;
 
-  @ApiPropertyOptional({ description: 'Precio unitario', example: 6.25, default: 0 })
+  @ApiPropertyOptional({
+    description: 'Precio unitario',
+    example: 6.25,
+    default: 0,
+  })
   @IsOptional()
   @IsNumber()
   unitPrice?: number;
 
-  @ApiProperty({ description: 'Monto total', example: 12.50 })
+  @ApiProperty({ description: 'Monto total', example: 12.5 })
   @IsNumber()
   @IsNotEmpty()
   amount: number;
 
-  @ApiPropertyOptional({ description: 'Categoría del producto', example: 'Lácteos' })
+  @ApiPropertyOptional({
+    description: 'Categoría del producto',
+    example: 'Lácteos',
+  })
   @IsOptional()
   @IsString()
   category?: string;

@@ -35,12 +35,15 @@ export class TransfersController {
       'Atómico: debita la cuenta origen y acredita la destino dentro de una transaction.',
   })
   @ApiResponse({ status: 201, description: 'Transferencia creada' })
-  @ApiResponse({ status: 400, description: 'Cuentas iguales o monedas sin tasa' })
-  @ApiResponse({ status: 404, description: 'Cuenta origen o destino no encontrada' })
-  create(
-    @CurrentUser() user: FirebaseUser,
-    @Body() dto: CreateTransferDto,
-  ) {
+  @ApiResponse({
+    status: 400,
+    description: 'Cuentas iguales o monedas sin tasa',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Cuenta origen o destino no encontrada',
+  })
+  create(@CurrentUser() user: FirebaseUser, @Body() dto: CreateTransferDto) {
     return this.transfersService.create(user.uid, dto);
   }
 
@@ -72,7 +75,8 @@ export class TransfersController {
   @Delete(':id')
   @ApiOperation({
     summary: 'Eliminar transferencia (revierte saldos)',
-    description: 'Suma de vuelta el monto en origen y resta en destino atomicamente.',
+    description:
+      'Suma de vuelta el monto en origen y resta en destino atomicamente.',
   })
   async remove(@CurrentUser() user: FirebaseUser, @Param('id') id: string) {
     await this.transfersService.remove(user.uid, id);

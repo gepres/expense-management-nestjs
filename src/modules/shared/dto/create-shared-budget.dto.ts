@@ -30,7 +30,7 @@ export class CreateSharedBudgetDto {
   @ApiPropertyOptional({ example: '2025-11-26' })
   @IsOptional()
   @IsString()
-  date?: string;  
+  date?: string;
 
   @ApiPropertyOptional({ example: '23:45:52' })
   @IsOptional()

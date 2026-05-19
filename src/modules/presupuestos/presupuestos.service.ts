@@ -80,7 +80,8 @@ export class PresupuestosService {
       .collection('accounts')
       .doc(accountId)
       .get();
-    if (!accountSnap.exists) throw new NotFoundException('Cuenta no encontrada');
+    if (!accountSnap.exists)
+      throw new NotFoundException('Cuenta no encontrada');
     const account = accountSnap.data() as AccountDocument;
     if (account.userId !== userId) {
       throw new NotFoundException('Cuenta no encontrada');
@@ -94,7 +95,11 @@ export class PresupuestosService {
    *   - por categoría
    *   - en efectivo (metodoPago === 'efectivo')
    */
-  private async sumGastosDelMes(userId: string, accountId: string, mes: string) {
+  private async sumGastosDelMes(
+    userId: string,
+    accountId: string,
+    mes: string,
+  ) {
     const [yearStr, monthStr] = mes.split('-');
     const year = Number(yearStr);
     const month = Number(monthStr);
@@ -121,7 +126,8 @@ export class PresupuestosService {
       const data = doc.data();
       const monto = Number(data.monto || 0);
       total += monto;
-      porCategoria[data.categoria] = (porCategoria[data.categoria] ?? 0) + monto;
+      porCategoria[data.categoria] =
+        (porCategoria[data.categoria] ?? 0) + monto;
       if (data.metodoPago === 'efectivo') efectivo += monto;
     }
 
@@ -207,7 +213,8 @@ export class PresupuestosService {
 
     if (!account.exists) return;
     const accountData = account.data() as AccountDocument;
-    const techo = (accountData.bankBalance ?? 0) + (accountData.cashBalance ?? 0);
+    const techo =
+      (accountData.bankBalance ?? 0) + (accountData.cashBalance ?? 0);
 
     let sumAsignado = 0;
     for (const doc of snap.docs) {
@@ -229,7 +236,10 @@ export class PresupuestosService {
   // CRUD
   // ==========================================================================
 
-  async create(userId: string, dto: CreatePresupuestoDto): Promise<Presupuesto> {
+  async create(
+    userId: string,
+    dto: CreatePresupuestoDto,
+  ): Promise<Presupuesto> {
     const account = await this.assertAccountOwnership(userId, dto.accountId);
     const moneda = (dto.moneda ?? account.currency).toUpperCase();
 
@@ -251,7 +261,13 @@ export class PresupuestosService {
       throw new BadRequestException('El límite no puede ser negativo');
     }
 
-    await this.validarAsignacion(userId, dto.accountId, dto.mes, dto.bucket, dto.limite);
+    await this.validarAsignacion(
+      userId,
+      dto.accountId,
+      dto.mes,
+      dto.bucket,
+      dto.limite,
+    );
 
     const now = Timestamp.now();
     const docData: PresupuestoDocument = {
@@ -272,15 +288,21 @@ export class PresupuestosService {
     return this.toPresupuesto(docRef.id, docData);
   }
 
-  async update(userId: string, id: string, dto: UpdatePresupuestoDto): Promise<Presupuesto> {
+  async update(
+    userId: string,
+    id: string,
+    dto: UpdatePresupuestoDto,
+  ): Promise<Presupuesto> {
     const docRef = this.collection().doc(id);
     const snap = await docRef.get();
     if (!snap.exists) throw new NotFoundException('Presupuesto no encontrado');
     const current = snap.data() as PresupuestoDocument;
-    if (current.userId !== userId) throw new NotFoundException('Presupuesto no encontrado');
+    if (current.userId !== userId)
+      throw new NotFoundException('Presupuesto no encontrado');
 
     if (dto.limite !== undefined) {
-      if (dto.limite < 0) throw new BadRequestException('El límite no puede ser negativo');
+      if (dto.limite < 0)
+        throw new BadRequestException('El límite no puede ser negativo');
       await this.validarAsignacion(
         userId,
         current.accountId,
@@ -291,7 +313,9 @@ export class PresupuestosService {
       );
     }
 
-    const updates: Partial<PresupuestoDocument> = { updatedAt: Timestamp.now() };
+    const updates: Partial<PresupuestoDocument> = {
+      updatedAt: Timestamp.now(),
+    };
     if (dto.limite !== undefined) updates.limite = dto.limite;
 
     await docRef.update(updates);
@@ -305,7 +329,8 @@ export class PresupuestosService {
     const snap = await docRef.get();
     if (!snap.exists) throw new NotFoundException('Presupuesto no encontrado');
     const data = snap.data() as PresupuestoDocument;
-    if (data.userId !== userId) throw new NotFoundException('Presupuesto no encontrado');
+    if (data.userId !== userId)
+      throw new NotFoundException('Presupuesto no encontrado');
 
     await docRef.delete();
     this.logger.log(`Presupuesto removed: ${id}`);
@@ -315,7 +340,8 @@ export class PresupuestosService {
     const snap = await this.collection().doc(id).get();
     if (!snap.exists) throw new NotFoundException('Presupuesto no encontrado');
     const data = snap.data() as PresupuestoDocument;
-    if (data.userId !== userId) throw new NotFoundException('Presupuesto no encontrado');
+    if (data.userId !== userId)
+      throw new NotFoundException('Presupuesto no encontrado');
     return this.toPresupuesto(id, data);
   }
 

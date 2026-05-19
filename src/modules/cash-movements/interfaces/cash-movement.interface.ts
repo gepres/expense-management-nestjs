@@ -73,7 +73,10 @@ export interface CashMovementDocument {
 }
 
 export interface CashMovement
-  extends Omit<CashMovementDocument, 'date' | 'createdAt' | 'updatedAt' | 'revertedAt'> {
+  extends Omit<
+    CashMovementDocument,
+    'date' | 'createdAt' | 'updatedAt' | 'revertedAt'
+  > {
   id: string;
   date: string;
   createdAt: string;

@@ -39,7 +39,8 @@ export class CreateTransferDto {
 
   @ApiPropertyOptional({
     example: 0.265,
-    description: 'Tipo de cambio (toCurrency/fromCurrency). Si no se envía, se calcula.',
+    description:
+      'Tipo de cambio (toCurrency/fromCurrency). Si no se envía, se calcula.',
   })
   @IsOptional()
   @IsNumber()

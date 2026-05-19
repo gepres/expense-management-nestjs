@@ -16,10 +16,7 @@ import type {
 import { CategoriesService } from '../categories/categories.service';
 import { PaymentMethodsService } from '../payment-methods/payment-methods.service';
 import { AnthropicService } from '../anthropic/anthropic.service';
-import {
-  LearningLogService,
-  LearningLogEntry,
-} from './learning-log.service';
+import { LearningLogService, LearningLogEntry } from './learning-log.service';
 
 /** Canal de origen del gasto → `input.channel` del learning_log. */
 export type LearningChannel = 'text' | 'image' | 'audio';
@@ -83,9 +80,11 @@ export class InferenceService {
     const deps: ClassifyDeps = {
       getCategories: () => this.categoriesService.findAll(userId),
       getHistory: async (normalized) =>
-        (await this.learningLog.queryRelevant(userId, normalized, {
-          limit: 20,
-        })).map(toHistoryEntry),
+        (
+          await this.learningLog.queryRelevant(userId, normalized, {
+            limit: 20,
+          })
+        ).map(toHistoryEntry),
       llmClassify: async (desc, candidates) => {
         try {
           return await this.anthropicService.classifyAgainstTaxonomy(

@@ -2,9 +2,9 @@ import { IsString, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateConversationDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Nuevo título para la conversación',
-    example: 'Presupuesto actualizado - Febrero 2024' 
+    example: 'Presupuesto actualizado - Febrero 2024',
   })
   @IsString()
   @MinLength(1)

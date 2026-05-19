@@ -11,8 +11,20 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-const VOUCHER_TYPES = ['boleta', 'factura', 'recibo', 'ticket', 'nota-debito', 'nota-credito'] as const;
-const REIMBURSEMENT_STATUSES = ['pending', 'approved', 'rejected', 'paid'] as const;
+const VOUCHER_TYPES = [
+  'boleta',
+  'factura',
+  'recibo',
+  'ticket',
+  'nota-debito',
+  'nota-credito',
+] as const;
+const REIMBURSEMENT_STATUSES = [
+  'pending',
+  'approved',
+  'rejected',
+  'paid',
+] as const;
 
 /**
  * DTO para crear un gasto.
@@ -34,7 +46,10 @@ export class CreateExpenseDto {
   @Min(0.01)
   monto: number;
 
-  @ApiProperty({ description: 'Fecha del gasto (ISO)', example: '2026-04-28T12:00:00Z' })
+  @ApiProperty({
+    description: 'Fecha del gasto (ISO)',
+    example: '2026-04-28T12:00:00Z',
+  })
   @IsDateString()
   @IsNotEmpty()
   fecha: string;
@@ -50,7 +65,8 @@ export class CreateExpenseDto {
   subcategoria?: string;
 
   @ApiProperty({
-    description: 'Método de pago. Si es "efectivo" descuenta cashBalance, sino bankBalance.',
+    description:
+      'Método de pago. Si es "efectivo" descuenta cashBalance, sino bankBalance.',
     example: 'yape',
   })
   @IsString()
@@ -67,7 +83,10 @@ export class CreateExpenseDto {
   @IsString()
   descripcion?: string;
 
-  @ApiPropertyOptional({ description: 'Comercio o lugar', example: 'Restaurante X' })
+  @ApiPropertyOptional({
+    description: 'Comercio o lugar',
+    example: 'Restaurante X',
+  })
   @IsOptional()
   @IsString()
   comercio?: string;

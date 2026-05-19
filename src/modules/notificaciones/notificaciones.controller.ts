@@ -36,7 +36,9 @@ export class NotificacionesController {
   }
 
   @Get('contar-no-leidas')
-  @ApiOperation({ summary: 'Contador de notificaciones no leídas (para badge)' })
+  @ApiOperation({
+    summary: 'Contador de notificaciones no leídas (para badge)',
+  })
   async contarNoLeidas(@CurrentUser() user: FirebaseUser) {
     const count = await this.service.contarNoLeidas(user.uid);
     return { count };

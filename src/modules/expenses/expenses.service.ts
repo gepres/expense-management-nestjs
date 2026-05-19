@@ -28,7 +28,9 @@ function toMesKey(fecha: Date | string): string {
  * - 'efectivo' → cashBalance
  * - cualquier otro (yape, plin, tarjeta_*, transferencia, otros) → bankBalance
  */
-function targetBalanceField(metodoPago: string | undefined): 'bankBalance' | 'cashBalance' {
+function targetBalanceField(
+  metodoPago: string | undefined,
+): 'bankBalance' | 'cashBalance' {
   return metodoPago === 'efectivo' ? 'cashBalance' : 'bankBalance';
 }
 
@@ -134,7 +136,10 @@ export class ExpensesService {
     userId: string,
     accountIds: string[],
   ): Promise<Map<string, { name: string; currency: string; bank?: string }>> {
-    const map = new Map<string, { name: string; currency: string; bank?: string }>();
+    const map = new Map<
+      string,
+      { name: string; currency: string; bank?: string }
+    >();
     if (accountIds.length === 0) return map;
 
     const firestore = this.firebaseService.getFirestore();
@@ -258,7 +263,10 @@ export class ExpensesService {
     };
 
     // Agrupar: (cuenta + moneda) → {count, total}
-    const groups = new Map<string, { cuenta: string; moneda: string; count: number; total: number }>();
+    const groups = new Map<
+      string,
+      { cuenta: string; moneda: string; count: number; total: number }
+    >();
     for (const e of expenses) {
       const key = `${e.accountName}__${e.moneda || 'PEN'}`;
       const g = groups.get(key);
@@ -371,7 +379,8 @@ export class ExpensesService {
       if (dto.ruc) expenseData.ruc = dto.ruc;
       if (dto.igv !== undefined) expenseData.igv = dto.igv;
       if (dto.subtotal !== undefined) expenseData.subtotal = dto.subtotal;
-      if (dto.reimbursementStatus) expenseData.reimbursementStatus = dto.reimbursementStatus;
+      if (dto.reimbursementStatus)
+        expenseData.reimbursementStatus = dto.reimbursementStatus;
 
       tx.set(expenseRef, expenseData);
       tx.update(accountRef, {
@@ -392,9 +401,14 @@ export class ExpensesService {
             status: 'archived',
             updatedAt: Timestamp.now(),
           });
-        this.logger.log(`Shopping list ${dto.shoppingListId} archived after expense creation`);
+        this.logger.log(
+          `Shopping list ${dto.shoppingListId} archived after expense creation`,
+        );
       } catch (error) {
-        this.logger.warn(`Failed to archive shopping list ${dto.shoppingListId}`, error);
+        this.logger.warn(
+          `Failed to archive shopping list ${dto.shoppingListId}`,
+          error,
+        );
       }
     }
 
@@ -595,7 +609,8 @@ export class ExpensesService {
       if (dto.monto !== undefined) updates.monto = dto.monto;
       if (dto.moneda !== undefined) updates.moneda = dto.moneda;
       if (dto.categoria !== undefined) updates.categoria = dto.categoria;
-      if (dto.subcategoria !== undefined) updates.subcategoria = dto.subcategoria;
+      if (dto.subcategoria !== undefined)
+        updates.subcategoria = dto.subcategoria;
       if (dto.descripcion !== undefined) updates.descripcion = dto.descripcion;
       if (dto.metodoPago !== undefined) updates.metodoPago = dto.metodoPago;
       if (dto.comercio !== undefined) updates.comercio = dto.comercio;
@@ -605,11 +620,13 @@ export class ExpensesService {
         updates.fecha = Timestamp.fromDate(new Date(dto.fecha));
       }
       if (dto.voucherType !== undefined) updates.voucherType = dto.voucherType;
-      if (dto.voucherNumber !== undefined) updates.voucherNumber = dto.voucherNumber;
+      if (dto.voucherNumber !== undefined)
+        updates.voucherNumber = dto.voucherNumber;
       if (dto.ruc !== undefined) updates.ruc = dto.ruc;
       if (dto.igv !== undefined) updates.igv = dto.igv;
       if (dto.subtotal !== undefined) updates.subtotal = dto.subtotal;
-      if (dto.reimbursementStatus !== undefined) updates.reimbursementStatus = dto.reimbursementStatus;
+      if (dto.reimbursementStatus !== undefined)
+        updates.reimbursementStatus = dto.reimbursementStatus;
 
       tx.update(expenseRef, updates);
       return { before, updates };
@@ -727,10 +744,15 @@ export class ExpensesService {
     
     Si falta información, infiérela o usa defaults. Responde SOLO con el JSON.`;
 
-    const response = await this.anthropicService.sendMessage(prompt, [], undefined, {
-      scope: 'app',
-      feature: 'expense_parse_text',
-    });
+    const response = await this.anthropicService.sendMessage(
+      prompt,
+      [],
+      undefined,
+      {
+        scope: 'app',
+        feature: 'expense_parse_text',
+      },
+    );
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);

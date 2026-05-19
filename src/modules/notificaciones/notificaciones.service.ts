@@ -100,10 +100,7 @@ export class NotificacionesService {
       query = query.where('leida', '==', false);
     }
 
-    const snap = await query
-      .orderBy('createdAt', 'desc')
-      .limit(limit)
-      .get();
+    const snap = await query.orderBy('createdAt', 'desc').limit(limit).get();
 
     return snap.docs.map((d) =>
       this.toDto(d.id, d.data() as NotificacionDocument),

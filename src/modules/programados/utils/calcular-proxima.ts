@@ -83,7 +83,8 @@ export function calcularProximaEjecucion(
     }
 
     case 'semanal': {
-      const diaTarget = input.diaEjecucion ?? getDayInZone(input.fechaInicio, tz);
+      const diaTarget =
+        input.diaEjecucion ?? getDayInZone(input.fechaInicio, tz);
       candidata = siguienteDiaSemanaEnZona(partida, diaTarget, tz);
       // Si la base cae en el día target pero la hora ya pasó (sin ultimaEjecucion),
       // saltar a la siguiente semana.
@@ -239,8 +240,7 @@ function siguienteEjecucionMensual(
       ultimo.setHours(hh, mm, 0, 0);
       return fromZonedTime(ultimo, tz);
     }
-    const dia =
-      diaEjecucion ?? getDate(toZonedTime(fechaInicio, tz));
+    const dia = diaEjecucion ?? getDate(toZonedTime(fechaInicio, tz));
     const ultimoDia = getDate(endOfMonth(local));
     const diaReal = Math.min(dia, ultimoDia);
     const fecha = setDate(local, diaReal);
@@ -248,7 +248,9 @@ function siguienteEjecucionMensual(
     return fromZonedTime(fecha, tz);
   };
 
-  let cursor = ultimaEjecucion ? addMonthsInZone(ultimaEjecucion, 1, tz) : fechaInicio;
+  let cursor = ultimaEjecucion
+    ? addMonthsInZone(ultimaEjecucion, 1, tz)
+    : fechaInicio;
   let candidata = calcularDelMes(cursor);
 
   while (isBefore(candidata, ahoraUtc)) {

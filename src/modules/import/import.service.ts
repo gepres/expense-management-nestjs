@@ -2,8 +2,10 @@ import {
   Injectable,
   Logger,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { FirebaseService } from '../firebase/firebase.service';
+import { AccountDocument } from '../accounts/interfaces/account.interface';
 import { AnthropicService } from '../anthropic/anthropic.service';
 import { CategoriesService } from '../categories/categories.service';
 import { ImportExpenseDto } from './dto/import-expense.dto';
@@ -86,12 +88,15 @@ export class ImportService {
     }
 
     // Validate expenses
-    const { valid, errors } = await ExpenseValidatorUtil.validateExpenses(expenses);
+    const { valid, errors } =
+      await ExpenseValidatorUtil.validateExpenses(expenses);
 
     // Generate warnings
     const warnings = ExpenseValidatorUtil.generateWarnings(valid);
 
-    this.logger.log(`Validation complete: ${valid.length} valid, ${errors.length} errors`);
+    this.logger.log(
+      `Validation complete: ${valid.length} valid, ${errors.length} errors`,
+    );
 
     return {
       success: errors.length === 0,
@@ -120,7 +125,10 @@ export class ImportService {
 
     // Skip duplicates if requested
     if (options.skipDuplicates) {
-      const { filtered, removed } = await this.filterDuplicates(userId, processedExpenses);
+      const { filtered, removed } = await this.filterDuplicates(
+        userId,
+        processedExpenses,
+      );
       processedExpenses = filtered;
       duplicatesRemoved = removed;
       this.logger.log(`Removed ${duplicatesRemoved} duplicates`);
@@ -128,7 +136,10 @@ export class ImportService {
 
     // Auto-categorize with AI if requested
     if (options.autoCategorizate) {
-      categorized = await this.autoCategorizeExpenses(userId, processedExpenses);
+      categorized = await this.autoCategorizeExpenses(
+        userId,
+        processedExpenses,
+      );
       this.logger.log(`Categorized ${categorized} expenses with AI`);
     }
 
@@ -141,7 +152,7 @@ export class ImportService {
     }
 
     // Normalize categoria, subcategoria, metodoPago (lowercase, no accents)
-    const normalizedExpenses = processedExpenses.map(expense => ({
+    const normalizedExpenses = processedExpenses.map((expense) => ({
       ...expense,
       categoria: this.normalizeText(expense.categoria),
       subcategoria: this.normalizeText(expense.subcategoria),
@@ -159,19 +170,54 @@ export class ImportService {
   }
 
   /**
-   * Step 3: Upload expenses to Firestore
+   * Decide qué sub-saldo afecta un gasto según su método de pago.
+   * 'efectivo' → cashBalance; cualquier otro → bankBalance.
+   * Idéntico criterio que ExpensesService.targetBalanceField para mantener
+   * la coherencia de saldos entre el alta normal y la importación.
+   */
+  private isCashMethod(metodoPago: string | undefined): boolean {
+    return this.normalizeText(metodoPago) === 'efectivo';
+  }
+
+  /**
+   * Step 3: Upload expenses to Firestore.
+   *
+   * Multi-cuenta (Opción B): TODOS los gastos importados se asocian a
+   * `accountId` y heredan la moneda de esa cuenta. El saldo de la cuenta se
+   * descuenta atómicamente (efectivo → cashBalance, resto → bankBalance) en
+   * una única transacción al final, replicando el invariante de
+   * ExpensesService.create (sin esto los saldos quedan desincronizados).
    */
   async uploadExpenses(
     userId: string,
     expenses: ImportExpenseDto[],
+    accountId: string,
     batchSize: number = 100,
   ): Promise<UploadResult> {
-    this.logger.log(`Uploading ${expenses.length} expenses for user ${userId}`);
+    this.logger.log(
+      `Uploading ${expenses.length} expenses for user ${userId} → account ${accountId}`,
+    );
 
     const firestore = this.firebaseService.getFirestore();
     const gastosRef = firestore.collection('expenses');
     const errors: ImportError[] = [];
     let imported = 0;
+
+    // Validar la cuenta destino ANTES de escribir nada (fail-fast).
+    const accountRef = firestore.collection('accounts').doc(accountId);
+    const accountSnap = await accountRef.get();
+    if (!accountSnap.exists) {
+      throw new NotFoundException('Cuenta destino no encontrada');
+    }
+    const account = accountSnap.data() as AccountDocument;
+    if (account.userId !== userId) {
+      throw new NotFoundException('Cuenta destino no encontrada');
+    }
+    const accountCurrency = account.currency;
+
+    // Acumuladores de lo efectivamente importado, para el descuento de saldo.
+    let cashTotal = 0;
+    let bankTotal = 0;
 
     // Create import record
     const importRecord = await this.createImportRecord(
@@ -186,28 +232,44 @@ export class ImportService {
       const batch = firestore.batch();
       const chunk = expenses.slice(i, i + batchSize);
 
+      // Sumas de ESTE batch — solo se aplican al saldo si el commit triunfa.
+      let chunkCash = 0;
+      let chunkBank = 0;
+
       for (let j = 0; j < chunk.length; j++) {
         const expense = chunk[j];
         const rowNumber = i + j + 1;
 
         try {
+          const now = Timestamp.now();
           const docRef = gastosRef.doc();
           const expenseData = {
             userId,
+            accountId,
             fecha: Timestamp.fromDate(new Date(expense.fecha)),
             monto: expense.monto,
             concepto: expense.concepto,
             categoria: expense.categoria || 'Sin categoría',
             subcategoria: expense.subcategoria || null,
             metodoPago: expense.metodoPago || 'Efectivo',
-            moneda: expense.moneda || 'PEN',
+            // La cuenta manda: todos los gastos importados quedan en su moneda.
+            moneda: accountCurrency,
             comercio: expense.comercio || null,
-            descripcion: expense.descripcion || null,
+            // gastoFirestoreToGasto lee `descripcion`; si el archivo solo
+            // trae `concepto`, lo usamos como descripción para que el gasto
+            // no aparezca vacío en la lista.
+            descripcion: expense.descripcion || expense.concepto || null,
             importId: importRecord.id,
-            createdAt: Timestamp.now(),
+            createdAt: now,
+            updatedAt: now,
           };
 
           batch.set(docRef, expenseData);
+          if (this.isCashMethod(expense.metodoPago)) {
+            chunkCash += expense.monto;
+          } else {
+            chunkBank += expense.monto;
+          }
           imported++;
         } catch (error) {
           errors.push({
@@ -220,7 +282,11 @@ export class ImportService {
 
       try {
         await batch.commit();
-        this.logger.log(`Committed batch ${Math.floor(i / batchSize) + 1}: ${chunk.length} expenses`);
+        cashTotal += chunkCash;
+        bankTotal += chunkBank;
+        this.logger.log(
+          `Committed batch ${Math.floor(i / batchSize) + 1}: ${chunk.length} expenses`,
+        );
       } catch (error) {
         this.logger.error(`Batch commit failed: ${error.message}`);
         // Add errors for all items in failed batch
@@ -235,6 +301,36 @@ export class ImportService {
       }
     }
 
+    // Descuento de saldo atómico de lo realmente importado.
+    if (cashTotal > 0 || bankTotal > 0) {
+      try {
+        await firestore.runTransaction(async (tx) => {
+          const snap = await tx.get(accountRef);
+          if (!snap.exists) {
+            throw new NotFoundException('Cuenta destino no encontrada');
+          }
+          const acc = snap.data() as AccountDocument;
+          tx.update(accountRef, {
+            cashBalance: (acc.cashBalance ?? 0) - cashTotal,
+            bankBalance: (acc.bankBalance ?? 0) - bankTotal,
+            updatedAt: Timestamp.now(),
+          });
+        });
+        this.logger.log(
+          `Account ${accountId} balance adjusted: -${cashTotal} cash, -${bankTotal} bank (${accountCurrency})`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Failed to adjust account ${accountId} balance: ${error.message}`,
+        );
+        errors.push({
+          row: 0,
+          field: 'accountBalance',
+          message: `Gastos importados pero el saldo de la cuenta no se pudo actualizar: ${error.message}`,
+        });
+      }
+    }
+
     // Update import record
     await this.updateImportRecord(importRecord.id, userId, {
       imported,
@@ -244,7 +340,9 @@ export class ImportService {
       completedAt: Timestamp.now(),
     });
 
-    this.logger.log(`Upload complete: ${imported} imported, ${errors.length} failed`);
+    this.logger.log(
+      `Upload complete: ${imported} imported, ${errors.length} failed`,
+    );
 
     return {
       success: errors.length === 0,
@@ -302,20 +400,24 @@ export class ImportService {
     for (const expense of expenses) {
       if (!expense.categoria) {
         try {
-          const suggestedCategory = await this.anthropicService.categorizeExpense(
-            expense.concepto,
-            expense.monto,
-            expense.comercio,
-            categories,
-            { scope: 'app', feature: 'autocategorize' },
-          );
+          const suggestedCategory =
+            await this.anthropicService.categorizeExpense(
+              expense.concepto,
+              expense.monto,
+              expense.comercio,
+              categories,
+              { scope: 'app', feature: 'autocategorize' },
+            );
 
           if (categories.includes(suggestedCategory)) {
             expense.categoria = suggestedCategory;
             categorized++;
           }
         } catch (error) {
-          this.logger.error(`Error auto-categorizing: ${expense.concepto}`, error);
+          this.logger.error(
+            `Error auto-categorizing: ${expense.concepto}`,
+            error,
+          );
         }
       }
     }
@@ -345,10 +447,15 @@ ${JSON.stringify(summary, null, 2)}
 Proporciona máximo 3 sugerencias en formato JSON con un array, cada una con: type (category|duplicate|format|missing|anomaly), message, affectedRows (array de números), suggestion, confidence (0-1).`;
 
     try {
-      const response = await this.anthropicService.sendMessage(prompt, [], undefined, {
-        scope: 'app',
-        feature: 'import_suggestions',
-      });
+      const response = await this.anthropicService.sendMessage(
+        prompt,
+        [],
+        undefined,
+        {
+          scope: 'app',
+          feature: 'import_suggestions',
+        },
+      );
       const jsonMatch = response.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         const aiSuggestions = JSON.parse(jsonMatch[0]);
@@ -451,7 +558,6 @@ Proporciona máximo 3 sugerencias en formato JSON con un array, cada una con: ty
           categoria: 'alimentacion',
           subcategoria: 'restaurantes',
           metodoPago: 'tarjeta credito',
-          moneda: 'PEN',
           comercio: 'Restaurante El Buen Sabor',
           descripcion: 'Almuerzo con cliente',
         },
@@ -462,7 +568,6 @@ Proporciona máximo 3 sugerencias en formato JSON con un array, cada una con: ty
           categoria: 'transporte',
           subcategoria: 'gasolina',
           metodoPago: 'efectivo',
-          moneda: 'PEN',
           comercio: 'grifo primax',
           descripcion: 'Llenado de tanque',
         },
@@ -473,7 +578,6 @@ Proporciona máximo 3 sugerencias en formato JSON con un array, cada una con: ty
           categoria: 'entretenimiento',
           subcategoria: 'streaming',
           metodoPago: 'tarjeta debito',
-          moneda: 'PEN',
           comercio: 'Netflix',
           descripcion: 'Mensualidad',
         },
@@ -484,7 +588,6 @@ Proporciona máximo 3 sugerencias en formato JSON con un array, cada una con: ty
           categoria: 'transporte',
           subcategoria: 'taxi',
           metodoPago: 'yape',
-          moneda: 'PEN',
           comercio: 'Uber',
           descripcion: '',
         },

@@ -32,7 +32,9 @@ export class CashMovementsService {
       date: data.date.toDate().toISOString(),
       createdAt: data.createdAt.toDate().toISOString(),
       updatedAt: data.updatedAt.toDate().toISOString(),
-      revertedAt: data.revertedAt ? data.revertedAt.toDate().toISOString() : undefined,
+      revertedAt: data.revertedAt
+        ? data.revertedAt.toDate().toISOString()
+        : undefined,
     };
   }
 
@@ -181,13 +183,17 @@ export class CashMovementsService {
         throw new NotFoundException('Movimiento no encontrado');
       }
       if (original.type === 'reversal') {
-        throw new ConflictException('No se puede revertir un movimiento de tipo reversal');
+        throw new ConflictException(
+          'No se puede revertir un movimiento de tipo reversal',
+        );
       }
       if (original.revertedBy) {
         throw new ConflictException('Este movimiento ya fue revertido');
       }
 
-      const accountRef = firestore.collection(ACCOUNTS_COLLECTION).doc(original.accountId);
+      const accountRef = firestore
+        .collection(ACCOUNTS_COLLECTION)
+        .doc(original.accountId);
       const accountSnap = await tx.get(accountRef);
       if (!accountSnap.exists) {
         throw new NotFoundException('Cuenta no encontrada');
@@ -262,9 +268,7 @@ export class CashMovementsService {
     const firestore = this.firebaseService.getFirestore();
     const limit = opts.limit ?? 100;
 
-    let query = firestore
-      .collection(COLLECTION)
-      .where('userId', '==', userId) as FirebaseFirestore.Query;
+    let query = firestore.collection(COLLECTION).where('userId', '==', userId);
 
     if (opts.accountId) {
       query = query.where('accountId', '==', opts.accountId);
@@ -284,7 +288,8 @@ export class CashMovementsService {
       .get();
     if (!doc.exists) throw new NotFoundException('Movimiento no encontrado');
     const data = doc.data() as CashMovementDocument;
-    if (data.userId !== userId) throw new NotFoundException('Movimiento no encontrado');
+    if (data.userId !== userId)
+      throw new NotFoundException('Movimiento no encontrado');
     return this.toCashMovement(id, data);
   }
 
@@ -344,7 +349,10 @@ export class CashMovementsService {
             const dest = movement.destination ?? 'bank';
             if (dest === 'cash') newCash -= movement.amount;
             else newBank -= movement.amount;
-          } else if (movement.type === 'reversal' && movement.revertsMovementId) {
+          } else if (
+            movement.type === 'reversal' &&
+            movement.revertsMovementId
+          ) {
             // Borrar un reversal: el saldo está revertido, restaurar el efecto
             // original Y limpiar el flag `revertedBy` del original.
             const origRef = firestore

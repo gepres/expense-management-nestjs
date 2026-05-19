@@ -137,7 +137,10 @@ export class AnthropicService {
 
   async sendMessage(
     userMessage: string,
-    conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [],
+    conversationHistory: Array<{
+      role: 'user' | 'assistant';
+      content: string;
+    }> = [],
     context?: string,
     usageCtx?: Partial<UsageContext>,
   ): Promise<string> {
@@ -432,7 +435,11 @@ Responde solo con la descripción, sin explicaciones adicionales.`;
     expensesData: any,
     question?: string,
     usageCtx?: Partial<UsageContext>,
-  ): Promise<{ analysis: string; recommendations: string[]; insights: string[] }> {
+  ): Promise<{
+    analysis: string;
+    recommendations: string[];
+    insights: string[];
+  }> {
     try {
       const prompt = question
         ? `Analiza los siguientes datos de gastos y responde la pregunta del usuario:
@@ -466,12 +473,7 @@ Formatea tu respuesta en secciones claras.`;
         ],
       });
 
-      this.trackUsage(
-        this.model,
-        response.usage,
-        usageCtx,
-        'analyze_expenses',
-      );
+      this.trackUsage(this.model, response.usage, usageCtx, 'analyze_expenses');
 
       const content = response.content[0];
       if (content.type === 'text') {
@@ -481,7 +483,9 @@ Formatea tu respuesta en secciones claras.`;
         const recommendations: string[] = [];
         const insights: string[] = [];
 
-        const recMatch = text.match(/recomendaciones?:?\n([\s\S]*?)(?=\n\n|insights?:|$)/i);
+        const recMatch = text.match(
+          /recomendaciones?:?\n([\s\S]*?)(?=\n\n|insights?:|$)/i,
+        );
         if (recMatch) {
           recommendations.push(
             ...recMatch[1]
@@ -529,9 +533,7 @@ Formatea tu respuesta en secciones claras.`;
     const analyticsModel =
       this.configService.get<string>('anthropic.analyticsModel') || this.model;
 
-    const focoLinea = focus
-      ? `\nEnfócate especialmente en: "${focus}".`
-      : '';
+    const focoLinea = focus ? `\nEnfócate especialmente en: "${focus}".` : '';
 
     const prompt = `Eres un analista financiero personal. Analiza el siguiente resumen YA CALCULADO de gastos del usuario (montos en su moneda, no conviertas).${focoLinea}
 

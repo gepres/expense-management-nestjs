@@ -1,8 +1,9 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { FirebaseService } from '../firebase/firebase.service';
+import { isPromoActive } from '../../common/utils/promo.util';
 
-export type UserRole = 'admin' | 'pro' | 'standard';
+export type UserRole = 'admin' | 'pro' | 'standard' | 'promocional';
 
 export interface QuotaSnapshot {
   mes: string;
@@ -41,8 +42,13 @@ function numOr(v: unknown, fallback: number): number {
 export interface QuotaConfig {
   standardTokens: number;
   proTokens: number;
+  /** Tokens/mes del trial promocional (acceso PRO acotado). */
+  promocionalTokens: number;
   standardImages: number;
   proImages: number;
+  promocionalImages: number;
+  /** Duración por defecto del trial promocional (días). */
+  promocionalDays: number;
   warnPct: number;
 }
 
@@ -70,8 +76,11 @@ export class QuotaService {
     return {
       standardTokens: q.standardTokens ?? 100000,
       proTokens: q.proTokens ?? 2000000,
+      promocionalTokens: q.promocionalTokens ?? 80000,
       standardImages: q.standardImages ?? 0,
       proImages: q.proImages ?? 50,
+      promocionalImages: q.promocionalImages ?? 2,
+      promocionalDays: q.promocionalDays ?? 15,
       warnPct: q.warnPct ?? 80,
     };
   }
@@ -92,12 +101,17 @@ export class QuotaService {
         .collection(QUOTA_CONFIG_DOC.col)
         .doc(QUOTA_CONFIG_DOC.id)
         .get();
-      const d = (snap.exists ? snap.data() : null) as Partial<QuotaConfig> | null;
+      const d = (
+        snap.exists ? snap.data() : null
+      ) as Partial<QuotaConfig> | null;
       const merged: QuotaConfig = {
         standardTokens: numOr(d?.standardTokens, env.standardTokens),
         proTokens: numOr(d?.proTokens, env.proTokens),
+        promocionalTokens: numOr(d?.promocionalTokens, env.promocionalTokens),
         standardImages: numOr(d?.standardImages, env.standardImages),
         proImages: numOr(d?.proImages, env.proImages),
+        promocionalImages: numOr(d?.promocionalImages, env.promocionalImages),
+        promocionalDays: numOr(d?.promocionalDays, env.promocionalDays),
         warnPct: numOr(d?.warnPct, env.warnPct),
       };
       this.cachedConfig = merged;
@@ -129,6 +143,9 @@ export class QuotaService {
     }
     if (role === 'pro') {
       return { tokens: cfg.proTokens, images: cfg.proImages };
+    }
+    if (role === 'promocional') {
+      return { tokens: cfg.promocionalTokens, images: cfg.promocionalImages };
     }
     return { tokens: cfg.standardTokens, images: cfg.standardImages };
   }
@@ -171,15 +188,33 @@ export class QuotaService {
 
   async getUserRole(uid: string): Promise<UserRole> {
     try {
-      const snap = await this.firebase
-        .getFirestore()
-        .collection('users')
-        .doc(uid)
-        .get();
-      const role = snap.exists
-        ? (snap.data()?.role as string | undefined)
-        : undefined;
-      return role === 'admin' || role === 'pro' ? role : 'standard';
+      const ref = this.firebase.getFirestore().collection('users').doc(uid);
+      const snap = await ref.get();
+      const data = snap.exists ? snap.data() : undefined;
+      const role = data?.role as string | undefined;
+
+      if (role === 'admin' || role === 'pro') return role;
+
+      // Trial promocional: vigente → acceso PRO acotado; vencido → se
+      // degrada a 'standard' (auto-curado, best-effort) y se trata como tal.
+      if (role === 'promocional') {
+        if (isPromoActive(data?.promoExpiresAt)) {
+          return 'promocional';
+        }
+        try {
+          await ref.update({
+            role: 'standard',
+            promoExpiresAt: null,
+            updatedAt: new Date(),
+          });
+          this.logger.log(`Promo vencido uid=${uid} → degradado a standard`);
+        } catch {
+          /* best-effort: si falla el write, igual lo tratamos como standard */
+        }
+        return 'standard';
+      }
+
+      return 'standard';
     } catch {
       // Si no se puede leer el rol, asumimos el más restrictivo.
       return 'standard';
@@ -235,10 +270,7 @@ export class QuotaService {
     const mes = this.monthKey();
     const cfg = await this.effectiveConfig();
     const limits = this.limitsForRole(r, cfg);
-    const { tokens: used, images: imagesUsed } = await this.readUsage(
-      uid,
-      mes,
-    );
+    const { tokens: used, images: imagesUsed } = await this.readUsage(uid, mes);
 
     const unlimited = !Number.isFinite(limits.tokens);
     // Límite efectivo = límite del rol + bonus/ajuste del admin (si lo hay).
@@ -276,7 +308,12 @@ export class QuotaService {
    */
   async adjustUserQuota(
     adminUid: string,
-    dto: { userId: string; mode: 'reset' | 'bonus'; tokens?: number; note?: string },
+    dto: {
+      userId: string;
+      mode: 'reset' | 'bonus';
+      tokens?: number;
+      note?: string;
+    },
   ): Promise<QuotaSnapshot> {
     const mes = this.monthKey();
     const { tokens: used } = await this.readUsage(dto.userId, mes);

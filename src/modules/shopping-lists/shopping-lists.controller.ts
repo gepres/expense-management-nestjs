@@ -1,16 +1,21 @@
-import { 
-  Controller, 
-  Get, 
-  Post, 
-  Body, 
-  Patch, 
-  Param, 
-  Delete, 
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
   UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { ShoppingListsService } from './shopping-lists.service';
 import { CreateShoppingListDto } from './dto/create-shopping-list.dto';
 import { UpdateShoppingListDto } from './dto/update-shopping-list.dto';
@@ -37,7 +42,10 @@ export class ShoppingListsController {
     @CurrentUser() user: FirebaseUser,
     @Body() createShoppingListDto: CreateShoppingListDto,
   ) {
-    return this.shoppingListsService.createList(user.uid, createShoppingListDto);
+    return this.shoppingListsService.createList(
+      user.uid,
+      createShoppingListDto,
+    );
   }
 
   @Get()
@@ -51,10 +59,7 @@ export class ShoppingListsController {
   @ApiOperation({ summary: 'Obtener detalle de una lista con sus items' })
   @ApiResponse({ status: 200, description: 'Lista obtenida exitosamente' })
   @ApiResponse({ status: 404, description: 'Lista no encontrada' })
-  findOne(
-    @CurrentUser() user: FirebaseUser,
-    @Param('id') id: string,
-  ) {
+  findOne(@CurrentUser() user: FirebaseUser, @Param('id') id: string) {
     return this.shoppingListsService.findOneList(user.uid, id);
   }
 
@@ -66,17 +71,18 @@ export class ShoppingListsController {
     @Param('id') id: string,
     @Body() updateShoppingListDto: UpdateShoppingListDto,
   ) {
-    return this.shoppingListsService.updateList(user.uid, id, updateShoppingListDto);
+    return this.shoppingListsService.updateList(
+      user.uid,
+      id,
+      updateShoppingListDto,
+    );
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Eliminar lista de compras' })
   @ApiResponse({ status: 204, description: 'Lista eliminada exitosamente' })
-  remove(
-    @CurrentUser() user: FirebaseUser,
-    @Param('id') id: string,
-  ) {
+  remove(@CurrentUser() user: FirebaseUser, @Param('id') id: string) {
     return this.shoppingListsService.deleteList(user.uid, id);
   }
 
@@ -102,7 +108,12 @@ export class ShoppingListsController {
     @Param('itemId') itemId: string,
     @Body() updateItemDto: UpdateShoppingListItemDto,
   ) {
-    return this.shoppingListsService.updateItem(user.uid, listId, itemId, updateItemDto);
+    return this.shoppingListsService.updateItem(
+      user.uid,
+      listId,
+      itemId,
+      updateItemDto,
+    );
   }
 
   @Delete(':id/items/:itemId')
@@ -119,28 +130,32 @@ export class ShoppingListsController {
 
   @Post(':id/items/from-text')
   @ApiOperation({ summary: 'Parsear texto y agregar items en lote' })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'Items procesados y agregados',
     schema: {
       type: 'object',
       properties: {
         addedItems: {
           type: 'array',
-          items: { type: 'object' }
+          items: { type: 'object' },
         },
         failedLines: {
           type: 'array',
-          items: { type: 'string' }
-        }
-      }
-    }
+          items: { type: 'string' },
+        },
+      },
+    },
   })
   parseText(
     @CurrentUser() user: FirebaseUser,
     @Param('id') listId: string,
     @Body() parseDto: ParseItemsFromTextDto,
   ) {
-    return this.shoppingListsService.parseItemsFromText(user.uid, listId, parseDto.text);
+    return this.shoppingListsService.parseItemsFromText(
+      user.uid,
+      listId,
+      parseDto.text,
+    );
   }
 }

@@ -1,4 +1,11 @@
-import { IsEnum, IsBoolean, IsInt, Min, Max, IsOptional } from 'class-validator';
+import {
+  IsEnum,
+  IsBoolean,
+  IsInt,
+  Min,
+  Max,
+  IsOptional,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -48,7 +55,8 @@ export class ImportOptionsDto {
 
 export class UploadFileDto extends ImportOptionsDto {
   @ApiPropertyOptional({
-    description: 'Formato del archivo (opcional, se detecta automáticamente si no se envía)',
+    description:
+      'Formato del archivo (opcional, se detecta automáticamente si no se envía)',
     enum: ['excel', 'json'],
     example: 'excel',
   })

@@ -34,7 +34,9 @@ const EXPENSES_COLLECTION = 'expenses';
 const TRANSFERS_COLLECTION = 'transfers';
 const ACCOUNTS_COLLECTION = 'accounts';
 
-function targetBalanceField(metodoPago: string | undefined): 'bankBalance' | 'cashBalance' {
+function targetBalanceField(
+  metodoPago: string | undefined,
+): 'bankBalance' | 'cashBalance' {
   return metodoPago === 'efectivo' ? 'cashBalance' : 'bankBalance';
 }
 
@@ -80,7 +82,8 @@ export class ProgramadosCron {
 
     // Transferencias
     try {
-      const transferencias = await this.transferenciasService.findPendientes(ahora);
+      const transferencias =
+        await this.transferenciasService.findPendientes(ahora);
       if (transferencias.length > 0) {
         this.logger.log(
           `Procesando ${transferencias.length} transferencias programadas`,
@@ -115,7 +118,9 @@ export class ProgramadosCron {
     const firestore = this.firebaseService.getFirestore();
     const fechaProgramada = data.proximaEjecucion.toDate();
     const lockId = `${programadaId}_${fechaProgramada.toISOString()}`;
-    const ejecucionRef = firestore.collection(EJECUCIONES_COLLECTION).doc(lockId);
+    const ejecucionRef = firestore
+      .collection(EJECUCIONES_COLLECTION)
+      .doc(lockId);
 
     // ---- 1. LOCK idempotente ------------------------------------------------
     try {
@@ -136,8 +141,12 @@ export class ProgramadosCron {
     }
 
     // ---- 2. Transacción: crear expense + decrementar saldo ------------------
-    const programadoRef = firestore.collection(PROGRAMADOS_COLLECTION).doc(programadaId);
-    const accountRef = firestore.collection(ACCOUNTS_COLLECTION).doc(data.cuentaOrigenId);
+    const programadoRef = firestore
+      .collection(PROGRAMADOS_COLLECTION)
+      .doc(programadaId);
+    const accountRef = firestore
+      .collection(ACCOUNTS_COLLECTION)
+      .doc(data.cuentaOrigenId);
     const expenseRef = firestore.collection(EXPENSES_COLLECTION).doc();
 
     try {
@@ -286,7 +295,9 @@ export class ProgramadosCron {
       }
     } catch (err) {
       const errorMensaje = err instanceof Error ? err.message : String(err);
-      this.logger.error(`Tx fallida en programado ${programadaId}: ${errorMensaje}`);
+      this.logger.error(
+        `Tx fallida en programado ${programadaId}: ${errorMensaje}`,
+      );
       // Marcar ejecución como fallida (best-effort, fuera de la tx)
       try {
         await ejecucionRef.update({
@@ -325,7 +336,9 @@ export class ProgramadosCron {
     const firestore = this.firebaseService.getFirestore();
     const fechaProgramada = data.proximaEjecucion.toDate();
     const lockId = `${programadaId}_${fechaProgramada.toISOString()}`;
-    const ejecucionRef = firestore.collection(EJECUCIONES_COLLECTION).doc(lockId);
+    const ejecucionRef = firestore
+      .collection(EJECUCIONES_COLLECTION)
+      .doc(lockId);
 
     // ---- Lock idempotente -------------------------------------------------
     try {
@@ -342,9 +355,15 @@ export class ProgramadosCron {
       throw err;
     }
 
-    const programadoRef = firestore.collection(TRANSFERENCIAS_COLLECTION).doc(programadaId);
-    const fromRef = firestore.collection(ACCOUNTS_COLLECTION).doc(data.cuentaOrigenId);
-    const toRef = firestore.collection(ACCOUNTS_COLLECTION).doc(data.cuentaDestinoId);
+    const programadoRef = firestore
+      .collection(TRANSFERENCIAS_COLLECTION)
+      .doc(programadaId);
+    const fromRef = firestore
+      .collection(ACCOUNTS_COLLECTION)
+      .doc(data.cuentaOrigenId);
+    const toRef = firestore
+      .collection(ACCOUNTS_COLLECTION)
+      .doc(data.cuentaDestinoId);
     const transferRef = firestore.collection(TRANSFERS_COLLECTION).doc();
 
     // Resolver tipo de cambio FUERA de la transacción (fetch externo no debe
@@ -357,7 +376,10 @@ export class ProgramadosCron {
     if (esCrossCurrency) {
       try {
         if (data.usarTasaActual) {
-          exchangeRate = await this.fxService.getRate(data.moneda, monedaDestino);
+          exchangeRate = await this.fxService.getRate(
+            data.moneda,
+            monedaDestino,
+          );
         } else if (data.exchangeRate && data.exchangeRate > 0) {
           exchangeRate = data.exchangeRate;
         } else {
@@ -397,7 +419,9 @@ export class ProgramadosCron {
         ]);
 
         if (!programadoSnap.exists) {
-          throw new Error('Transferencia programada eliminada durante ejecución');
+          throw new Error(
+            'Transferencia programada eliminada durante ejecución',
+          );
         }
         const fresco = programadoSnap.data() as TransferenciaProgramadaDocument;
         if (!fresco.activo) throw new Error('Transferencia fue pausada');

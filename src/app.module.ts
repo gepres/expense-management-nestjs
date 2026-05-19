@@ -36,7 +36,6 @@ import { ProgramadosModule } from './modules/programados/programados.module';
 import { NotificacionesModule } from './modules/notificaciones/notificaciones.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 
-
 @Module({
   imports: [
     ConfigModule.forRoot({

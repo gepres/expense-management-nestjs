@@ -1,9 +1,17 @@
-import { IsString, IsNotEmpty, IsOptional, IsInt, Min, Max } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsInt,
+  Min,
+  Max,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class SendMessageDto {
   @ApiProperty({
-    description: 'Tu pregunta o mensaje para el asistente de IA. Puedes preguntar sobre tus gastos, pedir consejos financieros, análisis de patrones de gasto, etc.',
+    description:
+      'Tu pregunta o mensaje para el asistente de IA. Puedes preguntar sobre tus gastos, pedir consejos financieros, análisis de patrones de gasto, etc.',
     example: '¿Cuánto he gastado en comida este mes?',
   })
   @IsString()

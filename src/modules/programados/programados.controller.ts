@@ -61,7 +61,9 @@ export class ProgramadosController {
 
   @Delete(':id')
   @HttpCode(204)
-  @ApiOperation({ summary: 'Eliminar gasto programado (no borra ejecuciones pasadas)' })
+  @ApiOperation({
+    summary: 'Eliminar gasto programado (no borra ejecuciones pasadas)',
+  })
   async remove(@CurrentUser() user: FirebaseUser, @Param('id') id: string) {
     await this.programadosService.remove(user.uid, id);
   }
@@ -72,10 +74,7 @@ export class ProgramadosController {
     description:
       'Devuelve hasta 100 ejecuciones (auditoría del cron) ordenadas por fechaEjecutada descendente.',
   })
-  findEjecuciones(
-    @CurrentUser() user: FirebaseUser,
-    @Param('id') id: string,
-  ) {
+  findEjecuciones(@CurrentUser() user: FirebaseUser, @Param('id') id: string) {
     return this.programadosService.findEjecuciones(user.uid, id);
   }
 

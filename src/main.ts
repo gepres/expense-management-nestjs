@@ -54,7 +54,9 @@ async function bootstrap() {
   // Swagger documentation
   const config = new DocumentBuilder()
     .setTitle('Gastos Backend API')
-    .setDescription('API REST para asistente IA de gestión de gastos personales')
+    .setDescription(
+      'API REST para asistente IA de gestión de gastos personales',
+    )
     .setVersion('1.0')
     .addBearerAuth(
       {
@@ -70,7 +72,10 @@ async function bootstrap() {
     .addTag('Chat', 'Conversaciones con el asistente IA')
     .addTag('Receipts', 'Escaneo y procesamiento de comprobantes')
     .addTag('Expenses', 'Gestión de gastos')
-    .addTag('Import', 'Importación masiva de gastos desde Excel o JSON con validación y análisis IA')
+    .addTag(
+      'Import',
+      'Importación masiva de gastos desde Excel o JSON con validación y análisis IA',
+    )
     .addTag('Payment Methods', 'Gestión de métodos de pago')
     .addTag('Currencies', 'Gestión de monedas')
     .addTag('Health', 'Gestión de salud del API')

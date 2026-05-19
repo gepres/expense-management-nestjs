@@ -8,7 +8,13 @@ export interface Expense {
   category: string;
   description: string;
   date: Timestamp;
-  paymentMethod: 'yape' | 'plin' | 'transferencia' | 'efectivo' | 'tarjeta' | 'otro';
+  paymentMethod:
+    | 'yape'
+    | 'plin'
+    | 'transferencia'
+    | 'efectivo'
+    | 'tarjeta'
+    | 'otro';
   merchant?: string;
   referenceNumber?: string;
   imageUrl?: string;

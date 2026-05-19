@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { FirebaseService } from '../firebase/firebase.service';
 import { CreateSharedGroupDto } from './dto/create-shared-group.dto';
 import { UpdateSharedGroupDto } from './dto/update-shared-group.dto';
@@ -45,26 +50,33 @@ export class SharedService {
       .where('members', 'array-contains', userId)
       .get();
 
-    const groups = await Promise.all(snapshot.docs.map(async (doc) => {
-      const data = doc.data();
-      
-      // Get creator name
-      let creatorName = 'Usuario';
-      try {
-        const creatorRecord = await this.firebaseService.getAuth().getUser(data.createdBy);
-        creatorName = creatorRecord.displayName || creatorRecord.email || 'Usuario';
-      } catch (error) {
-        this.logger.warn(`Could not fetch creator info for ${data.createdBy}`);
-      }
+    const groups = await Promise.all(
+      snapshot.docs.map(async (doc) => {
+        const data = doc.data();
 
-      return {
-        id: doc.id,
-        ...data,
-        creatorName,
-        createdAt: (data.createdAt as Timestamp).toDate(),
-        updatedAt: (data.updatedAt as Timestamp).toDate(),
-      };
-    }));
+        // Get creator name
+        let creatorName = 'Usuario';
+        try {
+          const creatorRecord = await this.firebaseService
+            .getAuth()
+            .getUser(data.createdBy);
+          creatorName =
+            creatorRecord.displayName || creatorRecord.email || 'Usuario';
+        } catch (error) {
+          this.logger.warn(
+            `Could not fetch creator info for ${data.createdBy}`,
+          );
+        }
+
+        return {
+          id: doc.id,
+          ...data,
+          creatorName,
+          createdAt: (data.createdAt as Timestamp).toDate(),
+          updatedAt: (data.updatedAt as Timestamp).toDate(),
+        };
+      }),
+    );
 
     // Sort in-memory instead of using Firestore orderBy (avoids index requirement)
     return groups.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
@@ -82,7 +94,7 @@ export class SharedService {
     if (!data) {
       throw new NotFoundException('Group data not found');
     }
-    
+
     if (!data.members.includes(userId)) {
       throw new ForbiddenException('Access denied');
     }
@@ -98,7 +110,7 @@ export class SharedService {
       .get();
 
     // Filter active invitations in-memory (avoids index requirement)
-    const activeInvites = invitationsSnapshot.docs.filter(doc => {
+    const activeInvites = invitationsSnapshot.docs.filter((doc) => {
       const inviteData = doc.data();
       return inviteData.expiresAt.toDate() > new Date();
     });
@@ -112,13 +124,17 @@ export class SharedService {
       // Only creator can generate new invitations
       // Generate new invitation token
       const token = crypto.randomUUID();
-      const invitationRef = firestore.collection('shared_invitations').doc(token);
-      
+      const invitationRef = firestore
+        .collection('shared_invitations')
+        .doc(token);
+
       await invitationRef.set({
         groupId,
         createdBy: userId,
         createdAt: Timestamp.now(),
-        expiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)), // 7 days
+        expiresAt: Timestamp.fromDate(
+          new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        ), // 7 days
       });
 
       invitationToken = token;
@@ -130,19 +146,26 @@ export class SharedService {
       data.members.map(async (memberId: string) => {
         try {
           // Get user info from Auth
-          const userRecord = await this.firebaseService.getAuth().getUser(memberId);
-          
+          const userRecord = await this.firebaseService
+            .getAuth()
+            .getUser(memberId);
+
           // Get role and joinedAt from members subcollection
-          const memberDoc = await groupRef.collection('members').doc(memberId).get();
+          const memberDoc = await groupRef
+            .collection('members')
+            .doc(memberId)
+            .get();
           const memberData = memberDoc.data();
-          
+
           return {
             odId: memberId,
             name: userRecord.displayName || userRecord.email || 'Usuario',
             email: userRecord.email || '',
             photoURL: userRecord.photoURL || null,
             role: memberData?.role || 'member',
-            joinedAt: memberData?.joinedAt ? (memberData.joinedAt as Timestamp).toDate() : null,
+            joinedAt: memberData?.joinedAt
+              ? (memberData.joinedAt as Timestamp).toDate()
+              : null,
           };
         } catch (error) {
           this.logger.warn(`Could not fetch member info for ${memberId}`);
@@ -155,7 +178,7 @@ export class SharedService {
             joinedAt: null,
           };
         }
-      })
+      }),
     );
 
     return {
@@ -169,7 +192,11 @@ export class SharedService {
     };
   }
 
-  async updateGroup(userId: string, groupId: string, dto: UpdateSharedGroupDto) {
+  async updateGroup(
+    userId: string,
+    groupId: string,
+    dto: UpdateSharedGroupDto,
+  ) {
     const firestore = this.firebaseService.getFirestore();
     const groupRef = firestore.collection('shared_groups').doc(groupId);
     const doc = await groupRef.get();
@@ -255,15 +282,23 @@ export class SharedService {
       throw new ForbiddenException('Access denied');
     }
 
-    const snapshot = await groupRef.collection('budgets').orderBy('createdAt', 'desc').get();
-    return snapshot.docs.map(d => ({
+    const snapshot = await groupRef
+      .collection('budgets')
+      .orderBy('createdAt', 'desc')
+      .get();
+    return snapshot.docs.map((d) => ({
       id: d.id,
       ...d.data(),
       createdAt: (d.data().createdAt as Timestamp).toDate(),
     }));
   }
 
-  async updateBudget(userId: string, groupId: string, budgetId: string, dto: Partial<CreateSharedBudgetDto>) {
+  async updateBudget(
+    userId: string,
+    groupId: string,
+    budgetId: string,
+    dto: Partial<CreateSharedBudgetDto>,
+  ) {
     const firestore = this.firebaseService.getFirestore();
     const groupRef = firestore.collection('shared_groups').doc(groupId);
     const doc = await groupRef.get();
@@ -276,11 +311,11 @@ export class SharedService {
 
     const budgetRef = groupRef.collection('budgets').doc(budgetId);
     const budgetDoc = await budgetRef.get();
-    
+
     if (!budgetDoc.exists) throw new NotFoundException('Budget not found');
     const budgetData = budgetDoc.data();
     if (!budgetData) throw new NotFoundException('Budget data not found');
-    
+
     if (budgetData.odId !== userId) {
       throw new ForbiddenException('Can only edit your own budgets');
     }
@@ -306,11 +341,11 @@ export class SharedService {
 
     const budgetRef = groupRef.collection('budgets').doc(budgetId);
     const budgetDoc = await budgetRef.get();
-    
+
     if (!budgetDoc.exists) throw new NotFoundException('Budget not found');
     const budgetData = budgetDoc.data();
     if (!budgetData) throw new NotFoundException('Budget data not found');
-    
+
     if (budgetData.odId !== userId) {
       throw new ForbiddenException('Can only delete your own budgets');
     }
@@ -321,7 +356,11 @@ export class SharedService {
 
   // --- Expenses ---
 
-  async addExpense(userId: string, groupId: string, dto: CreateSharedExpenseDto) {
+  async addExpense(
+    userId: string,
+    groupId: string,
+    dto: CreateSharedExpenseDto,
+  ) {
     const firestore = this.firebaseService.getFirestore();
     const groupRef = firestore.collection('shared_groups').doc(groupId);
     const doc = await groupRef.get();
@@ -368,15 +407,23 @@ export class SharedService {
       throw new ForbiddenException('Access denied');
     }
 
-    const snapshot = await groupRef.collection('expenses').orderBy('createdAt', 'desc').get();
-    return snapshot.docs.map(d => ({
+    const snapshot = await groupRef
+      .collection('expenses')
+      .orderBy('createdAt', 'desc')
+      .get();
+    return snapshot.docs.map((d) => ({
       id: d.id,
       ...d.data(),
       createdAt: (d.data().createdAt as Timestamp).toDate(),
     }));
   }
 
-  async updateExpense(userId: string, groupId: string, expenseId: string, dto: Partial<CreateSharedExpenseDto>) {
+  async updateExpense(
+    userId: string,
+    groupId: string,
+    expenseId: string,
+    dto: Partial<CreateSharedExpenseDto>,
+  ) {
     const firestore = this.firebaseService.getFirestore();
     const groupRef = firestore.collection('shared_groups').doc(groupId);
     const doc = await groupRef.get();
@@ -389,11 +436,11 @@ export class SharedService {
 
     const expenseRef = groupRef.collection('expenses').doc(expenseId);
     const expenseDoc = await expenseRef.get();
-    
+
     if (!expenseDoc.exists) throw new NotFoundException('Expense not found');
     const expenseData = expenseDoc.data();
     if (!expenseData) throw new NotFoundException('Expense data not found');
-    
+
     if (expenseData.odId !== userId) {
       throw new ForbiddenException('Can only edit your own expenses');
     }
@@ -419,11 +466,11 @@ export class SharedService {
 
     const expenseRef = groupRef.collection('expenses').doc(expenseId);
     const expenseDoc = await expenseRef.get();
-    
+
     if (!expenseDoc.exists) throw new NotFoundException('Expense not found');
     const expenseData = expenseDoc.data();
     if (!expenseData) throw new NotFoundException('Expense data not found');
-    
+
     if (expenseData.odId !== userId) {
       throw new ForbiddenException('Can only delete your own expenses');
     }
@@ -447,12 +494,14 @@ export class SharedService {
 
     const token = crypto.randomUUID();
     const invitationRef = firestore.collection('shared_invitations').doc(token);
-    
+
     await invitationRef.set({
       groupId,
       createdBy: userId,
       createdAt: Timestamp.now(),
-      expiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)), // 7 days
+      expiresAt: Timestamp.fromDate(
+        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      ), // 7 days
     });
 
     return { token, link: `/compartidos/unirse/${token}` };
@@ -466,19 +515,22 @@ export class SharedService {
     if (!doc.exists) throw new NotFoundException('Invitation not found');
     const data = doc.data();
     if (!data) throw new NotFoundException('Invitation data not found');
-    
+
     if (data.expiresAt.toDate() < new Date()) {
       throw new ForbiddenException('Invitation expired');
     }
 
-    const groupDoc = await firestore.collection('shared_groups').doc(data.groupId).get();
+    const groupDoc = await firestore
+      .collection('shared_groups')
+      .doc(data.groupId)
+      .get();
     if (!groupDoc.exists) throw new NotFoundException('Group not found');
     const groupData = groupDoc.data();
 
-    return { 
-      valid: true, 
+    return {
+      valid: true,
       group: { id: groupDoc.id, ...groupData },
-      invitation: data 
+      invitation: data,
     };
   }
 
@@ -497,16 +549,16 @@ export class SharedService {
 
     const groupId = data.groupId;
     const groupRef = firestore.collection('shared_groups').doc(groupId);
-    
+
     await groupRef.update({
-      members: FieldValue.arrayUnion(userId)
+      members: FieldValue.arrayUnion(userId),
     });
 
     await groupRef.collection('members').doc(userId).set({
       userId,
       role: 'member',
       joinedAt: Timestamp.now(),
-      joinedVia: token
+      joinedVia: token,
     });
 
     return { success: true, groupId };
@@ -514,7 +566,11 @@ export class SharedService {
 
   // --- Members ---
 
-  async removeMember(userId: string, groupId: string, memberIdToRemove: string) {
+  async removeMember(
+    userId: string,
+    groupId: string,
+    memberIdToRemove: string,
+  ) {
     const firestore = this.firebaseService.getFirestore();
     const groupRef = firestore.collection('shared_groups').doc(groupId);
     const doc = await groupRef.get();
@@ -522,7 +578,7 @@ export class SharedService {
     if (!doc.exists) throw new NotFoundException('Group not found');
     const data = doc.data();
     if (!data) throw new NotFoundException('Group data not found');
-    
+
     if (data.createdBy !== userId) {
       throw new ForbiddenException('Only creator can remove members');
     }
@@ -532,7 +588,7 @@ export class SharedService {
     }
 
     await groupRef.update({
-      members: FieldValue.arrayRemove(memberIdToRemove)
+      members: FieldValue.arrayRemove(memberIdToRemove),
     });
 
     await groupRef.collection('members').doc(memberIdToRemove).delete();
@@ -550,11 +606,13 @@ export class SharedService {
     if (!data) throw new NotFoundException('Group data not found');
 
     if (data.createdBy === userId) {
-      throw new ForbiddenException('Creator cannot leave group, delete it instead');
+      throw new ForbiddenException(
+        'Creator cannot leave group, delete it instead',
+      );
     }
 
     await groupRef.update({
-      members: FieldValue.arrayRemove(userId)
+      members: FieldValue.arrayRemove(userId),
     });
 
     await groupRef.collection('members').doc(userId).delete();
@@ -579,30 +637,36 @@ export class SharedService {
     const budgetsSnapshot = await groupRef.collection('budgets').get();
     const expensesSnapshot = await groupRef.collection('expenses').get();
 
-    const budgets = budgetsSnapshot.docs.map(d => d.data());
-    const expenses = expensesSnapshot.docs.map(d => d.data());
+    const budgets = budgetsSnapshot.docs.map((d) => d.data());
+    const expenses = expensesSnapshot.docs.map((d) => d.data());
 
     // Calculate totals
     const totalBudget = budgets.reduce((sum, b) => sum + (b.amount || 0), 0);
     const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
 
     // By category
-    const byCategory = expenses.reduce((acc, e) => {
-      const cat = e.category || 'otros';
-      acc[cat] = (acc[cat] || 0) + (e.amount || 0);
-      return acc;
-    }, {} as Record<string, number>);
+    const byCategory = expenses.reduce(
+      (acc, e) => {
+        const cat = e.category || 'otros';
+        acc[cat] = (acc[cat] || 0) + (e.amount || 0);
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
     // Calculate per-member statistics
-    const memberBalances: Record<string, { contributed: number; spent: number }> = {};
-    
+    const memberBalances: Record<
+      string,
+      { contributed: number; spent: number }
+    > = {};
+
     // Initialize all members
     data.members.forEach((memberId: string) => {
       memberBalances[memberId] = { contributed: 0, spent: 0 };
     });
 
     // Add contributions (budgets)
-    budgets.forEach(b => {
+    budgets.forEach((b) => {
       const uid = b.odId || b.userId; // Support both old and new format
       if (memberBalances[uid]) {
         memberBalances[uid].contributed += b.amount || 0;
@@ -610,10 +674,10 @@ export class SharedService {
     });
 
     // Add expenses
-    expenses.forEach(e => {
+    expenses.forEach((e) => {
       const splitAmong = e.splitAmong || data.members;
       const sharePerPerson = (e.amount || 0) / splitAmong.length;
-      
+
       splitAmong.forEach((memberId: string) => {
         if (memberBalances[memberId]) {
           memberBalances[memberId].spent += sharePerPerson;
@@ -625,7 +689,9 @@ export class SharedService {
     const memberStats = await Promise.all(
       Object.entries(memberBalances).map(async ([memberId, stats]) => {
         try {
-          const userRecord = await this.firebaseService.getAuth().getUser(memberId);
+          const userRecord = await this.firebaseService
+            .getAuth()
+            .getUser(memberId);
           return {
             odId: memberId,
             name: userRecord.displayName || userRecord.email || 'Usuario',
@@ -645,7 +711,7 @@ export class SharedService {
             balance: Math.round((stats.contributed - stats.spent) * 100) / 100,
           };
         }
-      })
+      }),
     );
 
     return {
@@ -673,30 +739,30 @@ export class SharedService {
     const budgetsSnapshot = await groupRef.collection('budgets').get();
     const expensesSnapshot = await groupRef.collection('expenses').get();
 
-    const budgets = budgetsSnapshot.docs.map(d => d.data());
-    const expenses = expensesSnapshot.docs.map(d => d.data());
+    const budgets = budgetsSnapshot.docs.map((d) => d.data());
+    const expenses = expensesSnapshot.docs.map((d) => d.data());
 
     // Calculate member balances
     const balances: Record<string, number> = {};
-    
+
     // Initialize all members with 0
     data.members.forEach((memberId: string) => {
       balances[memberId] = 0;
     });
 
     // Add contributions (budgets)
-    budgets.forEach(b => {
+    budgets.forEach((b) => {
       balances[b.userId] = (balances[b.userId] || 0) + (b.amount || 0);
     });
 
     // Subtract expenses
-    expenses.forEach(e => {
+    expenses.forEach((e) => {
       const splitAmong = e.splitAmong || data.members;
       const sharePerPerson = (e.amount || 0) / splitAmong.length;
-      
+
       // Person who paid gets credit
       balances[e.paidBy] = (balances[e.paidBy] || 0) + (e.amount || 0);
-      
+
       // Everyone in split owes their share
       splitAmong.forEach((memberId: string) => {
         balances[memberId] = (balances[memberId] || 0) - sharePerPerson;
@@ -705,10 +771,15 @@ export class SharedService {
 
     // Simplify debts (greedy algorithm)
     const settlements: Array<{ from: string; to: string; amount: number }> = [];
-    const debtors = Object.entries(balances).filter(([_, bal]) => bal < -0.01).map(([id, bal]) => ({ id, amount: -bal }));
-    const creditors = Object.entries(balances).filter(([_, bal]) => bal > 0.01).map(([id, bal]) => ({ id, amount: bal }));
+    const debtors = Object.entries(balances)
+      .filter(([_, bal]) => bal < -0.01)
+      .map(([id, bal]) => ({ id, amount: -bal }));
+    const creditors = Object.entries(balances)
+      .filter(([_, bal]) => bal > 0.01)
+      .map(([id, bal]) => ({ id, amount: bal }));
 
-    let i = 0, j = 0;
+    let i = 0,
+      j = 0;
     while (i < debtors.length && j < creditors.length) {
       const debtor = debtors[i];
       const creditor = creditors[j];
@@ -748,17 +819,25 @@ export class SharedService {
     }
 
     // Get recent budgets and expenses
-    const budgetsSnapshot = await groupRef.collection('budgets').orderBy('createdAt', 'desc').limit(10).get();
-    const expensesSnapshot = await groupRef.collection('expenses').orderBy('createdAt', 'desc').limit(10).get();
+    const budgetsSnapshot = await groupRef
+      .collection('budgets')
+      .orderBy('createdAt', 'desc')
+      .limit(10)
+      .get();
+    const expensesSnapshot = await groupRef
+      .collection('expenses')
+      .orderBy('createdAt', 'desc')
+      .limit(10)
+      .get();
 
-    const budgets = budgetsSnapshot.docs.map(d => ({
+    const budgets = budgetsSnapshot.docs.map((d) => ({
       type: 'budget',
       ...d.data(),
       id: d.id,
       createdAt: (d.data().createdAt as Timestamp).toDate(),
     }));
 
-    const expenses = expensesSnapshot.docs.map(d => ({
+    const expenses = expensesSnapshot.docs.map((d) => ({
       type: 'expense',
       ...d.data(),
       id: d.id,
@@ -766,16 +845,23 @@ export class SharedService {
     }));
 
     // Merge and sort by date
-    const activity = [...budgets, ...expenses].sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    ).slice(0, 20);
+    const activity = [...budgets, ...expenses]
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )
+      .slice(0, 20);
 
     return activity;
   }
 
   // --- Export ---
 
-  async exportGroupExpenses(userId: string, groupId: string, format: 'json' | 'excel') {
+  async exportGroupExpenses(
+    userId: string,
+    groupId: string,
+    format: 'json' | 'excel',
+  ) {
     const firestore = this.firebaseService.getFirestore();
     const groupRef = firestore.collection('shared_groups').doc(groupId);
     const doc = await groupRef.get();
@@ -787,37 +873,40 @@ export class SharedService {
     }
 
     // 1. Fetch all data
-    const [budgetsSnapshot, expensesSnapshot, membersSnapshot] = await Promise.all([
-      groupRef.collection('budgets').get(),
-      groupRef.collection('expenses').get(),
-      groupRef.collection('members').get(),
-    ]);
+    const [budgetsSnapshot, expensesSnapshot, membersSnapshot] =
+      await Promise.all([
+        groupRef.collection('budgets').get(),
+        groupRef.collection('expenses').get(),
+        groupRef.collection('members').get(),
+      ]);
 
-    const budgets = budgetsSnapshot.docs.map(d => ({
+    const budgets = budgetsSnapshot.docs.map((d) => ({
       id: d.id,
       ...d.data(),
       createdAt: (d.data().createdAt as Timestamp).toDate(),
     }));
 
-    const expenses = expensesSnapshot.docs.map(d => ({
+    const expenses = expensesSnapshot.docs.map((d) => ({
       id: d.id,
       ...d.data(),
       createdAt: (d.data().createdAt as Timestamp).toDate(),
     }));
 
     // Get member details
-    const members = await Promise.all(data.members.map(async (mid: string) => {
-      try {
-        const userRecord = await this.firebaseService.getAuth().getUser(mid);
-        return {
-          id: mid,
-          name: userRecord.displayName || userRecord.email || 'Usuario',
-          email: userRecord.email || '',
-        };
-      } catch (e) {
-        return { id: mid, name: 'Usuario', email: '' };
-      }
-    }));
+    const members = await Promise.all(
+      data.members.map(async (mid: string) => {
+        try {
+          const userRecord = await this.firebaseService.getAuth().getUser(mid);
+          return {
+            id: mid,
+            name: userRecord.displayName || userRecord.email || 'Usuario',
+            email: userRecord.email || '',
+          };
+        } catch (e) {
+          return { id: mid, name: 'Usuario', email: '' };
+        }
+      }),
+    );
 
     // Calculate stats for summary
     const stats = await this.getStats(userId, groupId);
@@ -874,9 +963,12 @@ export class SharedService {
     ];
 
     expenses.forEach((e: any) => {
-      const payer = members.find(m => m.id === e.paidBy)?.name || 'Desconocido';
-      const splitNames = (e.splitAmong || []).map((uid: string) => members.find(m => m.id === uid)?.name).join(', ');
-      
+      const payer =
+        members.find((m) => m.id === e.paidBy)?.name || 'Desconocido';
+      const splitNames = (e.splitAmong || [])
+        .map((uid: string) => members.find((m) => m.id === uid)?.name)
+        .join(', ');
+
       expensesSheet.addRow({
         date: e.createdAt,
         description: e.description,
@@ -897,7 +989,9 @@ export class SharedService {
     ];
 
     budgets.forEach((b: any) => {
-      const user = members.find(m => m.id === (b.odId || b.userId))?.name || 'Desconocido';
+      const user =
+        members.find((m) => m.id === (b.odId || b.userId))?.name ||
+        'Desconocido';
       budgetsSheet.addRow({
         date: b.createdAt,
         user: user,

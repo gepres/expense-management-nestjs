@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { FirebaseService } from '../firebase/firebase.service';
 import { AnthropicService } from '../anthropic/anthropic.service';
 import { CreateShoppingListDto } from './dto/create-shopping-list.dto';
@@ -30,7 +35,8 @@ export class ShoppingListsService {
       updatedAt: Timestamp.now(),
     };
 
-    const docRef = await this.firebaseService.getFirestore()
+    const docRef = await this.firebaseService
+      .getFirestore()
       .collection('shopping-lists')
       .add(listData);
 
@@ -43,7 +49,8 @@ export class ShoppingListsService {
   async findAllLists(userId: string) {
     this.logger.log(`Finding all shopping lists for user ${userId}`);
 
-    const snapshot = await this.firebaseService.getFirestore()
+    const snapshot = await this.firebaseService
+      .getFirestore()
       .collection('shopping-lists')
       .where('userId', '==', userId)
       .orderBy('createdAt', 'desc')
@@ -53,9 +60,10 @@ export class ShoppingListsService {
 
     for (const doc of snapshot.docs) {
       const data = doc.data();
-      
+
       // Calculate summary for each list
-      const itemsSnapshot = await this.firebaseService.getFirestore()
+      const itemsSnapshot = await this.firebaseService
+        .getFirestore()
         .collection('shopping-lists')
         .doc(doc.id)
         .collection('items')
@@ -65,7 +73,7 @@ export class ShoppingListsService {
       let checkedCount = 0;
       let totalEstimated = 0;
 
-      itemsSnapshot.forEach(itemDoc => {
+      itemsSnapshot.forEach((itemDoc) => {
         const item = itemDoc.data();
         itemCount++;
         if (item.checked) checkedCount++;
@@ -92,7 +100,8 @@ export class ShoppingListsService {
 
     await this.verifyListOwnership(userId, listId);
 
-    const doc = await this.firebaseService.getFirestore()
+    const doc = await this.firebaseService
+      .getFirestore()
       .collection('shopping-lists')
       .doc(listId)
       .get();
@@ -107,14 +116,15 @@ export class ShoppingListsService {
     }
 
     // Get all items
-    const itemsSnapshot = await this.firebaseService.getFirestore()
+    const itemsSnapshot = await this.firebaseService
+      .getFirestore()
       .collection('shopping-lists')
       .doc(listId)
       .collection('items')
       .orderBy('createdAt', 'asc')
       .get();
 
-    const items = itemsSnapshot.docs.map(itemDoc => ({
+    const items = itemsSnapshot.docs.map((itemDoc) => ({
       id: itemDoc.id,
       ...itemDoc.data(),
       createdAt: itemDoc.data().createdAt?.toDate().toISOString(),
@@ -140,12 +150,14 @@ export class ShoppingListsService {
       updatedAt: Timestamp.now(),
     };
 
-    await this.firebaseService.getFirestore()
+    await this.firebaseService
+      .getFirestore()
       .collection('shopping-lists')
       .doc(listId)
       .update(updateData);
 
-    const updated = await this.firebaseService.getFirestore()
+    const updated = await this.firebaseService
+      .getFirestore()
       .collection('shopping-lists')
       .doc(listId)
       .get();
@@ -162,7 +174,8 @@ export class ShoppingListsService {
     await this.verifyListOwnership(userId, listId);
 
     // Delete all items first
-    const itemsSnapshot = await this.firebaseService.getFirestore()
+    const itemsSnapshot = await this.firebaseService
+      .getFirestore()
       .collection('shopping-lists')
       .doc(listId)
       .collection('items')
@@ -170,14 +183,15 @@ export class ShoppingListsService {
 
     const batch = this.firebaseService.getFirestore().batch();
 
-    itemsSnapshot.docs.forEach(doc => {
+    itemsSnapshot.docs.forEach((doc) => {
       batch.delete(doc.ref);
     });
 
     await batch.commit();
 
     // Delete the list
-    await this.firebaseService.getFirestore()
+    await this.firebaseService
+      .getFirestore()
       .collection('shopping-lists')
       .doc(listId)
       .delete();
@@ -187,7 +201,11 @@ export class ShoppingListsService {
 
   // ==================== ITEM MANAGEMENT ====================
 
-  async addItem(userId: string, listId: string, dto: CreateShoppingListItemDto) {
+  async addItem(
+    userId: string,
+    listId: string,
+    dto: CreateShoppingListItemDto,
+  ) {
     this.logger.log(`Adding item to shopping list ${listId}`);
 
     await this.verifyListOwnership(userId, listId);
@@ -203,14 +221,16 @@ export class ShoppingListsService {
       updatedAt: Timestamp.now(),
     };
 
-    const docRef = await this.firebaseService.getFirestore()
+    const docRef = await this.firebaseService
+      .getFirestore()
       .collection('shopping-lists')
       .doc(listId)
       .collection('items')
       .add(itemData);
 
     // Update list's updatedAt
-    await this.firebaseService.getFirestore()
+    await this.firebaseService
+      .getFirestore()
       .collection('shopping-lists')
       .doc(listId)
       .update({ updatedAt: Timestamp.now() });
@@ -221,7 +241,12 @@ export class ShoppingListsService {
     };
   }
 
-  async updateItem(userId: string, listId: string, itemId: string, dto: UpdateShoppingListItemDto) {
+  async updateItem(
+    userId: string,
+    listId: string,
+    itemId: string,
+    dto: UpdateShoppingListItemDto,
+  ) {
     this.logger.log(`Updating item ${itemId} in list ${listId}`);
 
     await this.verifyListOwnership(userId, listId);
@@ -231,7 +256,8 @@ export class ShoppingListsService {
       updatedAt: Timestamp.now(),
     };
 
-    await this.firebaseService.getFirestore()
+    await this.firebaseService
+      .getFirestore()
       .collection('shopping-lists')
       .doc(listId)
       .collection('items')
@@ -239,12 +265,14 @@ export class ShoppingListsService {
       .update(updateData);
 
     // Update list's updatedAt
-    await this.firebaseService.getFirestore()
+    await this.firebaseService
+      .getFirestore()
       .collection('shopping-lists')
       .doc(listId)
       .update({ updatedAt: Timestamp.now() });
 
-    const updated = await this.firebaseService.getFirestore()
+    const updated = await this.firebaseService
+      .getFirestore()
       .collection('shopping-lists')
       .doc(listId)
       .collection('items')
@@ -262,7 +290,8 @@ export class ShoppingListsService {
 
     await this.verifyListOwnership(userId, listId);
 
-    await this.firebaseService.getFirestore()
+    await this.firebaseService
+      .getFirestore()
       .collection('shopping-lists')
       .doc(listId)
       .collection('items')
@@ -270,7 +299,8 @@ export class ShoppingListsService {
       .delete();
 
     // Update list's updatedAt
-    await this.firebaseService.getFirestore()
+    await this.firebaseService
+      .getFirestore()
       .collection('shopping-lists')
       .doc(listId)
       .update({ updatedAt: Timestamp.now() });
@@ -316,10 +346,10 @@ Si una línea no se puede parsear, ignórala. NO incluyas texto adicional, solo 
 
       // Extract JSON from response
       let jsonText = response.trim();
-      
+
       // Remove markdown code blocks if present
       jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-      
+
       const parsedItems = JSON.parse(jsonText);
 
       if (!Array.isArray(parsedItems)) {
@@ -341,7 +371,10 @@ Si una línea no se puede parsear, ignórala. NO incluyas texto adicional, solo 
           const added = await this.addItem(userId, listId, itemDto);
           addedItems.push(added);
         } catch (error) {
-          this.logger.error(`Failed to add item: ${JSON.stringify(item)}`, error);
+          this.logger.error(
+            `Failed to add item: ${JSON.stringify(item)}`,
+            error,
+          );
           failedLines.push(item.name);
         }
       }
@@ -352,14 +385,17 @@ Si una línea no se puede parsear, ignórala. NO incluyas texto adicional, solo 
       };
     } catch (error) {
       this.logger.error('Error parsing items from text', error);
-      throw new Error('No se pudo procesar el texto. Por favor, verifica el formato.');
+      throw new Error(
+        'No se pudo procesar el texto. Por favor, verifica el formato.',
+      );
     }
   }
 
   // ==================== HELPER METHODS ====================
 
   private async verifyListOwnership(userId: string, listId: string) {
-    const doc = await this.firebaseService.getFirestore()
+    const doc = await this.firebaseService
+      .getFirestore()
       .collection('shopping-lists')
       .doc(listId)
       .get();
@@ -370,7 +406,9 @@ Si una línea no se puede parsear, ignórala. NO incluyas texto adicional, solo 
 
     const data = doc.data();
     if (!data || data.userId !== userId) {
-      throw new ForbiddenException('No tienes permiso para acceder a esta lista');
+      throw new ForbiddenException(
+        'No tienes permiso para acceder a esta lista',
+      );
     }
   }
 }

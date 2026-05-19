@@ -1,11 +1,29 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Req, Res, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+  UseGuards,
+  Req,
+  Res,
+  HttpStatus,
+} from '@nestjs/common';
 import { ExpensesService } from './expenses.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { ExpenseQueryDto } from './dto/expense-query.dto';
 import { ParseExpenseDto } from './dto/parse-expense.dto';
 import { GetExpensesFilterDto } from './dto/get-expenses-filter.dto';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 import type { Response } from 'express';
 
@@ -30,20 +48,27 @@ export class ExpensesController {
   }
 
   @Post('parse')
-  @ApiOperation({ summary: 'Analizar texto con IA para extraer datos de gasto' })
+  @ApiOperation({
+    summary: 'Analizar texto con IA para extraer datos de gasto',
+  })
   @ApiResponse({ status: 200, description: 'Datos extraídos' })
   parseText(@Req() req: any, @Body() parseExpenseDto: ParseExpenseDto) {
-    return this.expensesService.parseExpenseText(req.user.uid, parseExpenseDto.text);
+    return this.expensesService.parseExpenseText(
+      req.user.uid,
+      parseExpenseDto.text,
+    );
   }
 
   @Get('export')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Exportar gastos por mes y año',
-    description: 'Permite descargar los gastos en formato JSON o Excel filtrando por mes y año.'
+    description:
+      'Permite descargar los gastos en formato JSON o Excel filtrando por mes y año.',
   })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Gastos exportados correctamente. Si format=excel, devuelve un archivo binario. Si format=json, devuelve un array de objetos.',
+  @ApiResponse({
+    status: 200,
+    description:
+      'Gastos exportados correctamente. Si format=excel, devuelve un archivo binario. Si format=json, devuelve un array de objetos.',
     content: {
       'application/json': {
         schema: {
@@ -56,19 +81,22 @@ export class ExpensesController {
               monto: { type: 'number' },
               concepto: { type: 'string' },
               categoria: { type: 'string' },
-            }
-          }
-        }
+            },
+          },
+        },
       },
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
         schema: {
           type: 'string',
-          format: 'binary'
-        }
-      }
-    }
+          format: 'binary',
+        },
+      },
+    },
   })
-  @ApiResponse({ status: 400, description: 'Parámetros inválidos (mes/año incorrectos)' })
+  @ApiResponse({
+    status: 400,
+    description: 'Parámetros inválidos (mes/año incorrectos)',
+  })
   @ApiResponse({ status: 401, description: 'No autorizado' })
   async exportExpenses(
     @Req() req: any,
@@ -91,7 +119,8 @@ export class ExpensesController {
         const filename = `gastos_${filter.year}_${filter.month}.xlsx`;
 
         res.set({
-          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Type':
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'Content-Disposition': `attachment; filename="${filename}"`,
           'Content-Length': buffer.length.toString(),
         });
@@ -104,7 +133,8 @@ export class ExpensesController {
         statusCode: 500,
         message: 'Error interno al exportar gastos',
         error: error.message,
-        details: error.code === 9 ? 'Falta índice compuesto en Firestore' : undefined, // Code 9 is FAILED_PRECONDITION
+        details:
+          error.code === 9 ? 'Falta índice compuesto en Firestore' : undefined, // Code 9 is FAILED_PRECONDITION
       });
     }
   }
@@ -117,7 +147,11 @@ export class ExpensesController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar un gasto' })
-  update(@Req() req: any, @Param('id') id: string, @Body() updateExpenseDto: UpdateExpenseDto) {
+  update(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() updateExpenseDto: UpdateExpenseDto,
+  ) {
     return this.expensesService.update(req.user.uid, id, updateExpenseDto);
   }
 

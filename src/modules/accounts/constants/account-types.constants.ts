@@ -12,7 +12,13 @@
  * - card:     Tarjeta de crédito/débito (modelo simple: saldo puede ser negativo).
  * - other:    Cualquier otra cuenta (préstamos, fondo común, etc.).
  */
-export const ACCOUNT_TYPES = ['bank', 'savings', 'wallet', 'card', 'other'] as const;
+export const ACCOUNT_TYPES = [
+  'bank',
+  'savings',
+  'wallet',
+  'card',
+  'other',
+] as const;
 
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 

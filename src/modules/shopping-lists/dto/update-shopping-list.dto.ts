@@ -2,7 +2,10 @@ import { IsString, IsNumber, IsOptional, IsEnum } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateShoppingListDto {
-  @ApiPropertyOptional({ description: 'Nombre de la lista', example: 'Lista Actualizada' })
+  @ApiPropertyOptional({
+    description: 'Nombre de la lista',
+    example: 'Lista Actualizada',
+  })
   @IsOptional()
   @IsString()
   name?: string;
@@ -12,7 +15,10 @@ export class UpdateShoppingListDto {
   @IsNumber()
   budget?: number;
 
-  @ApiPropertyOptional({ description: 'Fecha de compra', example: '2023-10-28' })
+  @ApiPropertyOptional({
+    description: 'Fecha de compra',
+    example: '2023-10-28',
+  })
   @IsOptional()
   @IsString()
   date?: string;
@@ -32,7 +38,10 @@ export class UpdateShoppingListDto {
   @IsString()
   subcategory?: string;
 
-  @ApiPropertyOptional({ description: 'Método de pago', example: 'credit_card_id' })
+  @ApiPropertyOptional({
+    description: 'Método de pago',
+    example: 'credit_card_id',
+  })
   @IsOptional()
   @IsString()
   paymentMethod?: string;
@@ -42,10 +51,10 @@ export class UpdateShoppingListDto {
   @IsString()
   currency?: string;
 
-  @ApiPropertyOptional({ 
-    description: 'Estado de la lista', 
+  @ApiPropertyOptional({
+    description: 'Estado de la lista',
     example: 'active',
-    enum: ['active', 'completed', 'archived']
+    enum: ['active', 'completed', 'archived'],
   })
   @IsOptional()
   @IsEnum(['active', 'completed', 'archived'])

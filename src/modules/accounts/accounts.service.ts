@@ -40,7 +40,8 @@ export class AccountsService {
     const doc = await this.collection().doc(accountId).get();
     if (!doc.exists) throw new NotFoundException('Cuenta no encontrada');
     const data = doc.data() as AccountDocument;
-    if (data.userId !== userId) throw new NotFoundException('Cuenta no encontrada');
+    if (data.userId !== userId)
+      throw new NotFoundException('Cuenta no encontrada');
     return { ref: doc.ref, data };
   }
 
@@ -61,7 +62,9 @@ export class AccountsService {
           .where('userId', '==', userId)
           .where('isDefault', '==', true)
           .get();
-        const otherDefaults = others.docs.filter((d) => d.id !== accountIdBeingUpdated);
+        const otherDefaults = others.docs.filter(
+          (d) => d.id !== accountIdBeingUpdated,
+        );
         if (otherDefaults.length === 0) return true; // mantener como default
       }
       return false;
@@ -102,8 +105,14 @@ export class AccountsService {
   // ==========================================================================
 
   async create(userId: string, dto: CreateAccountDto): Promise<Account> {
-    if (dto.type === 'card' && dto.creditLimit !== undefined && dto.creditLimit < 0) {
-      throw new BadRequestException('El límite de crédito no puede ser negativo');
+    if (
+      dto.type === 'card' &&
+      dto.creditLimit !== undefined &&
+      dto.creditLimit < 0
+    ) {
+      throw new BadRequestException(
+        'El límite de crédito no puede ser negativo',
+      );
     }
 
     const initialBankBalance = dto.initialBankBalance ?? 0;
@@ -185,7 +194,8 @@ export class AccountsService {
     if (dto.bank !== undefined) updates.bank = dto.bank.trim();
     if (dto.icon !== undefined) updates.icon = dto.icon;
     if (dto.color !== undefined) updates.color = dto.color;
-    if (dto.includeInTotal !== undefined) updates.includeInTotal = dto.includeInTotal;
+    if (dto.includeInTotal !== undefined)
+      updates.includeInTotal = dto.includeInTotal;
     if (dto.creditLimit !== undefined) updates.creditLimit = dto.creditLimit;
     if (dto.status !== undefined) {
       // No permitir archivar la cuenta default si hay otras activas
@@ -204,7 +214,11 @@ export class AccountsService {
     }
 
     if (dto.isDefault !== undefined) {
-      const newDefault = await this.resolveDefaultFlag(userId, dto.isDefault, id);
+      const newDefault = await this.resolveDefaultFlag(
+        userId,
+        dto.isDefault,
+        id,
+      );
       updates.isDefault = newDefault;
     }
 

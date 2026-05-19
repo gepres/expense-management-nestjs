@@ -1,5 +1,21 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiParam } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+  ApiParam,
+} from '@nestjs/swagger';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 import { ChatService } from './chat.service';
 import { SendMessageDto } from './dto/send-message.dto';
@@ -16,12 +32,13 @@ export class ChatController {
   // ==================== CONVERSATION ENDPOINTS ====================
 
   @Post('conversations')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Crear nueva conversación',
-    description: 'Crea una nueva conversación de chat con el asistente. Puedes especificar un título opcional para identificarla fácilmente.'
+    description:
+      'Crea una nueva conversación de chat con el asistente. Puedes especificar un título opcional para identificarla fácilmente.',
   })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'Conversación creada exitosamente',
     schema: {
       type: 'object',
@@ -31,23 +48,27 @@ export class ChatController {
         title: { type: 'string' },
         messageCount: { type: 'number' },
         createdAt: { type: 'object' },
-        updatedAt: { type: 'object' }
-      }
-    }
+        updatedAt: { type: 'object' },
+      },
+    },
   })
   @ApiResponse({ status: 401, description: 'No autorizado' })
-  async createConversation(@Req() req: any, @Body() dto: CreateConversationDto) {
+  async createConversation(
+    @Req() req: any,
+    @Body() dto: CreateConversationDto,
+  ) {
     const userId = req.user.uid;
     return this.chatService.createConversation(userId, dto);
   }
 
   @Get('conversations')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Listar todas las conversaciones',
-    description: 'Obtiene el historial completo de conversaciones del usuario, ordenadas por fecha de última actualización.'
+    description:
+      'Obtiene el historial completo de conversaciones del usuario, ordenadas por fecha de última actualización.',
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Lista de conversaciones obtenida exitosamente',
     schema: {
       type: 'array',
@@ -58,10 +79,10 @@ export class ChatController {
           title: { type: 'string' },
           messageCount: { type: 'number' },
           lastMessagePreview: { type: 'string' },
-          updatedAt: { type: 'object' }
-        }
-      }
-    }
+          updatedAt: { type: 'object' },
+        },
+      },
+    },
   })
   @ApiResponse({ status: 401, description: 'No autorizado' })
   async getConversations(@Req() req: any) {
@@ -70,9 +91,10 @@ export class ChatController {
   }
 
   @Get('conversations/:id')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Obtener detalles de una conversación',
-    description: 'Obtiene la información completa de una conversación específica por su ID.'
+    description:
+      'Obtiene la información completa de una conversación específica por su ID.',
   })
   @ApiParam({ name: 'id', description: 'ID de la conversación' })
   @ApiResponse({ status: 200, description: 'Conversación encontrada' })
@@ -85,12 +107,16 @@ export class ChatController {
   }
 
   @Patch('conversations/:id')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Actualizar conversación',
-    description: 'Actualiza el título u otros metadatos de una conversación existente.'
+    description:
+      'Actualiza el título u otros metadatos de una conversación existente.',
   })
   @ApiParam({ name: 'id', description: 'ID de la conversación' })
-  @ApiResponse({ status: 200, description: 'Conversación actualizada exitosamente' })
+  @ApiResponse({
+    status: 200,
+    description: 'Conversación actualizada exitosamente',
+  })
   @ApiResponse({ status: 404, description: 'Conversación no encontrada' })
   @ApiResponse({ status: 403, description: 'Acceso denegado' })
   @ApiResponse({ status: 401, description: 'No autorizado' })
@@ -104,12 +130,16 @@ export class ChatController {
   }
 
   @Delete('conversations/:id')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Eliminar conversación',
-    description: 'Elimina permanentemente una conversación y todos sus mensajes asociados.'
+    description:
+      'Elimina permanentemente una conversación y todos sus mensajes asociados.',
   })
   @ApiParam({ name: 'id', description: 'ID de la conversación' })
-  @ApiResponse({ status: 200, description: 'Conversación eliminada exitosamente' })
+  @ApiResponse({
+    status: 200,
+    description: 'Conversación eliminada exitosamente',
+  })
   @ApiResponse({ status: 404, description: 'Conversación no encontrada' })
   @ApiResponse({ status: 403, description: 'Acceso denegado' })
   @ApiResponse({ status: 401, description: 'No autorizado' })
@@ -122,13 +152,14 @@ export class ChatController {
   // ==================== MESSAGE ENDPOINTS ====================
 
   @Get('conversations/:id/messages')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Obtener mensajes de una conversación',
-    description: 'Obtiene el historial completo de mensajes de una conversación específica, ordenados cronológicamente.'
+    description:
+      'Obtiene el historial completo de mensajes de una conversación específica, ordenados cronológicamente.',
   })
   @ApiParam({ name: 'id', description: 'ID de la conversación' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Mensajes obtenidos exitosamente',
     schema: {
       type: 'array',
@@ -138,10 +169,10 @@ export class ChatController {
           id: { type: 'string' },
           role: { type: 'string', enum: ['user', 'assistant'] },
           content: { type: 'string' },
-          timestamp: { type: 'object' }
-        }
-      }
-    }
+          timestamp: { type: 'object' },
+        },
+      },
+    },
   })
   @ApiResponse({ status: 404, description: 'Conversación no encontrada' })
   @ApiResponse({ status: 403, description: 'Acceso denegado' })
@@ -152,13 +183,14 @@ export class ChatController {
   }
 
   @Post('conversations/:id/messages')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Enviar mensaje a una conversación',
-    description: 'Envía un nuevo mensaje al asistente dentro del contexto de una conversación existente. El asistente mantendrá el historial de la conversación para respuestas más coherentes.'
+    description:
+      'Envía un nuevo mensaje al asistente dentro del contexto de una conversación existente. El asistente mantendrá el historial de la conversación para respuestas más coherentes.',
   })
   @ApiParam({ name: 'id', description: 'ID de la conversación' })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'Mensaje enviado y respuesta recibida',
     schema: {
       type: 'object',
@@ -170,11 +202,11 @@ export class ChatController {
           properties: {
             month: { type: 'number' },
             year: { type: 'number' },
-            expensesCount: { type: 'number' }
-          }
-        }
-      }
-    }
+            expensesCount: { type: 'number' },
+          },
+        },
+      },
+    },
   })
   @ApiResponse({ status: 404, description: 'Conversación no encontrada' })
   @ApiResponse({ status: 403, description: 'Acceso denegado' })
@@ -191,30 +223,31 @@ export class ChatController {
   // ==================== LEGACY ENDPOINT (Backward compatibility) ====================
 
   @Post('message')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Enviar mensaje al asistente de IA',
-    description: 'Envía una pregunta o mensaje al asistente de IA. El asistente analizará tus gastos del mes especificado (o el mes actual por defecto) y responderá con información personalizada, consejos financieros y análisis de tus patrones de gasto.'
+    description:
+      'Envía una pregunta o mensaje al asistente de IA. El asistente analizará tus gastos del mes especificado (o el mes actual por defecto) y responderá con información personalizada, consejos financieros y análisis de tus patrones de gasto.',
   })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'Respuesta generada exitosamente',
     schema: {
       type: 'object',
       properties: {
-        response: { 
+        response: {
           type: 'string',
-          description: 'Respuesta de texto del asistente'
+          description: 'Respuesta de texto del asistente',
         },
         contextUsed: {
           type: 'object',
           properties: {
             month: { type: 'number' },
             year: { type: 'number' },
-            expensesCount: { type: 'number' }
-          }
-        }
-      }
-    }
+            expensesCount: { type: 'number' },
+          },
+        },
+      },
+    },
   })
   @ApiResponse({ status: 401, description: 'No autorizado' })
   async sendMessage(@Req() req: any, @Body() dto: SendMessageDto) {

@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { AnthropicService } from '../anthropic/anthropic.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { FirebaseService } from '../firebase/firebase.service';
@@ -23,7 +28,10 @@ export class ChatService {
 
   // ==================== CONVERSATION MANAGEMENT ====================
 
-  async createConversation(userId: string, dto: CreateConversationDto): Promise<Conversation> {
+  async createConversation(
+    userId: string,
+    dto: CreateConversationDto,
+  ): Promise<Conversation> {
     const firestore = this.firebaseService.getFirestore();
     const conversationsRef = firestore
       .collection('users')
@@ -57,13 +65,16 @@ export class ChatService {
       .orderBy('updatedAt', 'desc')
       .get();
 
-    return snapshot.docs.map(doc => ({
+    return snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     })) as Conversation[];
   }
 
-  async getConversation(userId: string, conversationId: string): Promise<Conversation> {
+  async getConversation(
+    userId: string,
+    conversationId: string,
+  ): Promise<Conversation> {
     const firestore = this.firebaseService.getFirestore();
     const docRef = firestore
       .collection('users')
@@ -123,7 +134,10 @@ export class ChatService {
     } as Conversation;
   }
 
-  async deleteConversation(userId: string, conversationId: string): Promise<void> {
+  async deleteConversation(
+    userId: string,
+    conversationId: string,
+  ): Promise<void> {
     const firestore = this.firebaseService.getFirestore();
     const conversationRef = firestore
       .collection('users')
@@ -145,18 +159,23 @@ export class ChatService {
     // Delete all messages in the conversation
     const messagesSnapshot = await conversationRef.collection('messages').get();
     const batch = firestore.batch();
-    messagesSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+    messagesSnapshot.docs.forEach((doc) => batch.delete(doc.ref));
     await batch.commit();
 
     // Delete the conversation
     await conversationRef.delete();
 
-    this.logger.log(`Deleted conversation ${conversationId} for user ${userId}`);
+    this.logger.log(
+      `Deleted conversation ${conversationId} for user ${userId}`,
+    );
   }
 
   // ==================== MESSAGE MANAGEMENT ====================
 
-  async getMessages(userId: string, conversationId: string): Promise<Message[]> {
+  async getMessages(
+    userId: string,
+    conversationId: string,
+  ): Promise<Message[]> {
     // Verify conversation belongs to user
     await this.getConversation(userId, conversationId);
 
@@ -170,7 +189,7 @@ export class ChatService {
       .orderBy('timestamp', 'asc')
       .get();
 
-    return snapshot.docs.map(doc => ({
+    return snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     })) as Message[];
@@ -193,7 +212,7 @@ export class ChatService {
 
     // 1. Get conversation history
     const messages = await this.getMessages(userId, conversationId);
-    const conversationHistory = messages.map(m => ({
+    const conversationHistory = messages.map((m) => ({
       role: m.role,
       content: m.content,
     }));
@@ -213,13 +232,17 @@ export class ChatService {
 Datos de gastos del usuario para ${month}/${year}:
 Total de transacciones: ${expenses.length}
 Detalle de gastos:
-${JSON.stringify(expenses.map((e: any) => ({
-  fecha: e.fecha,
-  monto: e.monto,
-  concepto: e.concepto,
-  categoria: e.categoria,
-  comercio: e.comercio
-})), null, 2)}
+${JSON.stringify(
+  expenses.map((e: any) => ({
+    fecha: e.fecha,
+    monto: e.monto,
+    concepto: e.concepto,
+    categoria: e.categoria,
+    comercio: e.comercio,
+  })),
+  null,
+  2,
+)}
 `;
 
     // 3. Cuota + Send to AI
@@ -295,13 +318,17 @@ ${JSON.stringify(expenses.map((e: any) => ({
 Datos de gastos del usuario para ${month}/${year}:
 Total de transacciones: ${expenses.length}
 Detalle de gastos:
-${JSON.stringify(expenses.map((e: any) => ({
-  fecha: e.fecha,
-  monto: e.monto,
-  concepto: e.concepto,
-  categoria: e.categoria,
-  comercio: e.comercio
-})), null, 2)}
+${JSON.stringify(
+  expenses.map((e: any) => ({
+    fecha: e.fecha,
+    monto: e.monto,
+    concepto: e.concepto,
+    categoria: e.categoria,
+    comercio: e.comercio,
+  })),
+  null,
+  2,
+)}
 `;
 
       // 4. Cuota + enviar mensaje a Anthropic con el contexto

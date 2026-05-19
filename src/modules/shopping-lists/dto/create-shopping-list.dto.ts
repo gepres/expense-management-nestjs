@@ -6,7 +6,11 @@ export class CreateShoppingListDto {
   @IsString()
   name: string;
 
-  @ApiPropertyOptional({ description: 'Moneda', example: 'PEN', default: 'PEN' })
+  @ApiPropertyOptional({
+    description: 'Moneda',
+    example: 'PEN',
+    default: 'PEN',
+  })
   @IsOptional()
   @IsString()
   currency?: string;

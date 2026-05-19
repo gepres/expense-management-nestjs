@@ -33,10 +33,7 @@ export class AccountsController {
   @Post()
   @ApiOperation({ summary: 'Crear una cuenta nueva' })
   @ApiResponse({ status: 201, description: 'Cuenta creada' })
-  create(
-    @CurrentUser() user: FirebaseUser,
-    @Body() dto: CreateAccountDto,
-  ) {
+  create(@CurrentUser() user: FirebaseUser, @Body() dto: CreateAccountDto) {
     return this.accountsService.create(user.uid, dto);
   }
 
@@ -97,10 +94,7 @@ export class AccountsController {
     description:
       'Suma initialBalance + transfers in − transfers out − expenses. Útil para reconciliar.',
   })
-  recalculate(
-    @CurrentUser() user: FirebaseUser,
-    @Param('id') id: string,
-  ) {
+  recalculate(@CurrentUser() user: FirebaseUser, @Param('id') id: string) {
     return this.accountsService.recalculateBalance(user.uid, id);
   }
 }

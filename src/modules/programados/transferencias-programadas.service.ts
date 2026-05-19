@@ -163,7 +163,10 @@ export class TransferenciasProgramadasService {
     }
     const esCrossCurrency = monedaDestino !== dto.moneda;
     if (esCrossCurrency) {
-      if (!dto.usarTasaActual && (dto.exchangeRate === undefined || dto.exchangeRate <= 0)) {
+      if (
+        !dto.usarTasaActual &&
+        (dto.exchangeRate === undefined || dto.exchangeRate <= 0)
+      ) {
         throw new BadRequestException(
           'Para transferencias entre monedas distintas, indica `exchangeRate` (> 0) o `usarTasaActual: true`',
         );
@@ -211,13 +214,15 @@ export class TransferenciasProgramadasService {
     };
     if (dto.descripcion) doc.descripcion = dto.descripcion.trim();
     if (dto.diaEjecucion !== undefined) doc.diaEjecucion = dto.diaEjecucion;
-    if (dto.ultimoDiaDelMes !== undefined) doc.ultimoDiaDelMes = dto.ultimoDiaDelMes;
+    if (dto.ultimoDiaDelMes !== undefined)
+      doc.ultimoDiaDelMes = dto.ultimoDiaDelMes;
     if (dto.intervaloDias !== undefined) doc.intervaloDias = dto.intervaloDias;
     if (fechaUnica) doc.fechaUnica = Timestamp.fromDate(fechaUnica);
     if (fechaFin) doc.fechaFin = Timestamp.fromDate(fechaFin);
     if (esCrossCurrency) doc.monedaDestino = monedaDestino;
     if (dto.exchangeRate !== undefined) doc.exchangeRate = dto.exchangeRate;
-    if (dto.usarTasaActual !== undefined) doc.usarTasaActual = dto.usarTasaActual;
+    if (dto.usarTasaActual !== undefined)
+      doc.usarTasaActual = dto.usarTasaActual;
 
     const ref = this.firebaseService
       .getFirestore()
@@ -276,7 +281,8 @@ export class TransferenciasProgramadasService {
     const snap = await ref.get();
     if (!snap.exists) throw new NotFoundException('Programación no encontrada');
     const before = snap.data() as TransferenciaProgramadaDocument;
-    if (before.userId !== userId) throw new ForbiddenException('Acceso denegado');
+    if (before.userId !== userId)
+      throw new ForbiddenException('Acceso denegado');
 
     if (
       dto.cuentaOrigenId &&
@@ -318,8 +324,7 @@ export class TransferenciasProgramadasService {
 
     // Validar cuentas si cambian
     const moneda = dto.moneda ?? before.moneda;
-    const monedaDestino =
-      dto.monedaDestino ?? before.monedaDestino ?? moneda;
+    const monedaDestino = dto.monedaDestino ?? before.monedaDestino ?? moneda;
 
     if (dto.cuentaOrigenId) {
       const origen = await this.verificarCuenta(
@@ -351,7 +356,10 @@ export class TransferenciasProgramadasService {
     if (esCrossCurrency) {
       const exchangeRate = dto.exchangeRate ?? before.exchangeRate;
       const usarTasaActual = dto.usarTasaActual ?? before.usarTasaActual;
-      if (!usarTasaActual && (exchangeRate === undefined || exchangeRate <= 0)) {
+      if (
+        !usarTasaActual &&
+        (exchangeRate === undefined || exchangeRate <= 0)
+      ) {
         throw new BadRequestException(
           'Para transferencias entre monedas distintas, indica `exchangeRate` (> 0) o `usarTasaActual: true`',
         );
@@ -425,17 +433,11 @@ export class TransferenciasProgramadasService {
     this.logger.log(`Transferencia programada eliminada ${id}`);
   }
 
-  async pause(
-    userId: string,
-    id: string,
-  ): Promise<TransferenciaProgramada> {
+  async pause(userId: string, id: string): Promise<TransferenciaProgramada> {
     return this.update(userId, id, { activo: false });
   }
 
-  async resume(
-    userId: string,
-    id: string,
-  ): Promise<TransferenciaProgramada> {
+  async resume(userId: string, id: string): Promise<TransferenciaProgramada> {
     return this.update(userId, id, { activo: true });
   }
 

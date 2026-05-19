@@ -49,7 +49,9 @@ export class ProgramadosCronController {
     this.logger.log(`Trigger HTTP de cron recibido (startedAt=${startedAt})`);
     await this.cron.procesarPendientes();
     const finishedAt = new Date().toISOString();
-    this.logger.log(`Trigger HTTP de cron completado (finishedAt=${finishedAt})`);
+    this.logger.log(
+      `Trigger HTTP de cron completado (finishedAt=${finishedAt})`,
+    );
 
     return { ok: true, startedAt, finishedAt };
   }

@@ -1,4 +1,12 @@
-import { Controller, Post, Body, Headers, Logger, Res, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Headers,
+  Logger,
+  Res,
+  HttpStatus,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { FirebaseService } from '../firebase/firebase.service';
 import { Timestamp } from 'firebase-admin/firestore';
@@ -21,9 +29,7 @@ export class WhatsappQueueController {
   private readonly MAX_RETRIES = 3;
   private readonly RETRY_DELAYS = [100, 500, 1000]; // ms
 
-  constructor(
-    private firebaseService: FirebaseService,
-  ) {}
+  constructor(private firebaseService: FirebaseService) {}
 
   @Post('webhook')
   async handleIncomingMessage(
@@ -42,7 +48,8 @@ export class WhatsappQueueController {
 
     if (!phoneNumber) {
       this.logger.error('❌ Missing phone number in webhook');
-      return res.status(HttpStatus.OK)
+      return res
+        .status(HttpStatus.OK)
         .type('text/xml')
         .send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
     }
@@ -56,11 +63,16 @@ export class WhatsappQueueController {
         await this.enqueueMessageWithTimeout(body, phoneNumber, message);
         saveSuccess = true;
         const duration = Date.now() - startTime;
-        this.logger.log(`✅ Message enqueued successfully for ${phoneNumber} (${duration}ms, attempt ${attempt + 1})`);
+        this.logger.log(
+          `✅ Message enqueued successfully for ${phoneNumber} (${duration}ms, attempt ${attempt + 1})`,
+        );
         break;
       } catch (error) {
         lastError = error;
-        this.logger.warn(`⚠️ Enqueue attempt ${attempt + 1}/${this.MAX_RETRIES} failed:`, error.message);
+        this.logger.warn(
+          `⚠️ Enqueue attempt ${attempt + 1}/${this.MAX_RETRIES} failed:`,
+          error.message,
+        );
 
         // Si no es el último intento, esperar antes de reintentar
         if (attempt < this.MAX_RETRIES - 1) {
@@ -71,20 +83,24 @@ export class WhatsappQueueController {
 
     // Log del resultado final
     if (!saveSuccess) {
-      this.logger.error(`❌ Failed to enqueue message after ${this.MAX_RETRIES} attempts:`, {
-        messageSid: body.MessageSid,
-        phoneNumber,
-        error: lastError?.message || 'Unknown error',
-        errorType: lastError?.type,
-        errorCode: lastError?.code,
-      });
+      this.logger.error(
+        `❌ Failed to enqueue message after ${this.MAX_RETRIES} attempts:`,
+        {
+          messageSid: body.MessageSid,
+          phoneNumber,
+          error: lastError?.message || 'Unknown error',
+          errorType: lastError?.type,
+          errorCode: lastError?.code,
+        },
+      );
 
       // TODO: Implementar fallback - guardar en otra cola o notificar
       // Podríamos guardar en una "dead letter queue" o enviar alerta
     }
 
     // Siempre responder a Twilio para evitar reintentos
-    return res.status(HttpStatus.OK)
+    return res
+      .status(HttpStatus.OK)
       .type('text/xml')
       .send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
   }
@@ -100,7 +116,10 @@ export class WhatsappQueueController {
     const timeoutMs = 4000; // 4 segundos max por intento
 
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Firestore operation timeout')), timeoutMs);
+      setTimeout(
+        () => reject(new Error('Firestore operation timeout')),
+        timeoutMs,
+      );
     });
 
     const savePromise = this.saveToFirestore(body, phoneNumber, message);
@@ -145,6 +164,6 @@ export class WhatsappQueueController {
    * Delay helper para reintentos
    */
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

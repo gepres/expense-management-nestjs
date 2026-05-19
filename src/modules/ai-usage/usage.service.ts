@@ -123,10 +123,7 @@ export class UsageService {
         await db
           .collection('aiUsageMonthly')
           .doc(`${p.userId}_${mes}`)
-          .set(
-            { userId: p.userId, scope: 'user', ...rollup },
-            { merge: true },
-          );
+          .set({ userId: p.userId, scope: 'user', ...rollup }, { merge: true });
       } else {
         await db
           .collection('aiUsageAppMonthly')

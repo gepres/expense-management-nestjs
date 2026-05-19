@@ -36,9 +36,7 @@ export class FirebaseService implements OnModuleInit {
             throw new Error('Service account path not configured');
           }
           const absolutePath = join(process.cwd(), serviceAccountPath);
-          const serviceAccount = JSON.parse(
-            readFileSync(absolutePath, 'utf8'),
-          );
+          const serviceAccount = JSON.parse(readFileSync(absolutePath, 'utf8'));
           credential = admin.credential.cert(serviceAccount);
           this.logger.log('Firebase initialized with service account file');
         } catch (error) {
@@ -77,7 +75,9 @@ export class FirebaseService implements OnModuleInit {
     const projectId = this.configService.get<string>('firebase.projectId');
     const privateKey = this.configService.get<string>('firebase.privateKey');
     const clientEmail = this.configService.get<string>('firebase.clientEmail');
-    const privateKeyId = this.configService.get<string>('firebase.privateKeyId');
+    const privateKeyId = this.configService.get<string>(
+      'firebase.privateKeyId',
+    );
     const clientId = this.configService.get<string>('firebase.clientId');
 
     if (!projectId || !privateKey || !clientEmail) {

@@ -39,13 +39,19 @@ export class AiAskDto {
   @Min(2000)
   year: number;
 
-  @ApiPropertyOptional({ type: [String], description: 'IDs de cuentas; vacío = todas' })
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'IDs de cuentas; vacío = todas',
+  })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   accountIds?: string[];
 
-  @ApiPropertyOptional({ enum: ['PEN', 'USD'], description: 'Moneda a analizar' })
+  @ApiPropertyOptional({
+    enum: ['PEN', 'USD'],
+    description: 'Moneda a analizar',
+  })
   @IsOptional()
   @IsString()
   @IsIn(['PEN', 'USD'])

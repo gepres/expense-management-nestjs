@@ -225,7 +225,10 @@ export class ReceiptsController {
       ],
     },
   })
-  async findAll(@Query('status') status?: string, @Query('limit') limit?: number) {
+  async findAll(
+    @Query('status') status?: string,
+    @Query('limit') limit?: number,
+  ) {
     const filters = {
       status,
       limit: limit ? Number(limit) : undefined,

@@ -1,5 +1,8 @@
 import { Timestamp } from 'firebase-admin/firestore';
-import { AccountStatus, AccountType } from '../constants/account-types.constants';
+import {
+  AccountStatus,
+  AccountType,
+} from '../constants/account-types.constants';
 
 /**
  * Datos de tarjeta asociados a una cuenta. El backend NO descifra
@@ -55,7 +58,8 @@ export interface AccountDocument {
 /**
  * Account expuesto en la API (con `id` y fechas como ISO strings).
  */
-export interface Account extends Omit<AccountDocument, 'createdAt' | 'updatedAt'> {
+export interface Account
+  extends Omit<AccountDocument, 'createdAt' | 'updatedAt'> {
   id: string;
   createdAt: string;
   updatedAt: string;

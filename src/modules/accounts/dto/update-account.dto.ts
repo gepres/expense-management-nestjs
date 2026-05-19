@@ -1,9 +1,5 @@
 import { PartialType, OmitType } from '@nestjs/swagger';
-import {
-  IsOptional,
-  IsString,
-  IsIn,
-} from 'class-validator';
+import { IsOptional, IsString, IsIn } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { CreateAccountDto } from './create-account.dto';
 import { ACCOUNT_STATUSES } from '../constants/account-types.constants';

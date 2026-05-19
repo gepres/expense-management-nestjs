@@ -73,10 +73,7 @@ export class FirebaseExceptionFilter implements ExceptionFilter {
       }
     }
 
-    this.logger.error(
-      `Firebase Error: ${code} - ${message}`,
-      exception.stack,
-    );
+    this.logger.error(`Firebase Error: ${code} - ${message}`, exception.stack);
 
     response.status(status).json({
       statusCode: status,

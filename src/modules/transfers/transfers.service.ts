@@ -7,10 +7,7 @@ import {
 import { Timestamp } from 'firebase-admin/firestore';
 import { FirebaseService } from '../firebase/firebase.service';
 import { CreateTransferDto } from './dto/create-transfer.dto';
-import {
-  Transfer,
-  TransferDocument,
-} from './interfaces/transfer.interface';
+import { Transfer, TransferDocument } from './interfaces/transfer.interface';
 import { AccountDocument } from '../accounts/interfaces/account.interface';
 
 const TRANSFERS_COLLECTION = 'transfers';
@@ -44,24 +41,35 @@ export class TransfersService {
     }
 
     const firestore = this.firebaseService.getFirestore();
-    const fromRef = firestore.collection(ACCOUNTS_COLLECTION).doc(dto.fromAccountId);
-    const toRef = firestore.collection(ACCOUNTS_COLLECTION).doc(dto.toAccountId);
+    const fromRef = firestore
+      .collection(ACCOUNTS_COLLECTION)
+      .doc(dto.fromAccountId);
+    const toRef = firestore
+      .collection(ACCOUNTS_COLLECTION)
+      .doc(dto.toAccountId);
     const transferRef = firestore.collection(TRANSFERS_COLLECTION).doc();
 
     const fee = dto.fee ?? 0;
     const date = dto.date ? new Date(dto.date) : new Date();
 
     const result = await firestore.runTransaction(async (tx) => {
-      const [fromSnap, toSnap] = await Promise.all([tx.get(fromRef), tx.get(toRef)]);
+      const [fromSnap, toSnap] = await Promise.all([
+        tx.get(fromRef),
+        tx.get(toRef),
+      ]);
 
-      if (!fromSnap.exists) throw new NotFoundException('Cuenta origen no encontrada');
-      if (!toSnap.exists) throw new NotFoundException('Cuenta destino no encontrada');
+      if (!fromSnap.exists)
+        throw new NotFoundException('Cuenta origen no encontrada');
+      if (!toSnap.exists)
+        throw new NotFoundException('Cuenta destino no encontrada');
 
       const from = fromSnap.data() as AccountDocument;
       const to = toSnap.data() as AccountDocument;
 
-      if (from.userId !== userId) throw new NotFoundException('Cuenta origen no encontrada');
-      if (to.userId !== userId) throw new NotFoundException('Cuenta destino no encontrada');
+      if (from.userId !== userId)
+        throw new NotFoundException('Cuenta origen no encontrada');
+      if (to.userId !== userId)
+        throw new NotFoundException('Cuenta destino no encontrada');
 
       // Resolver monto destino y tipo de cambio
       let amountConverted: number | undefined;
@@ -71,7 +79,10 @@ export class TransfersService {
         amountConverted = dto.amount;
         exchangeRate = 1;
       } else {
-        if (dto.amountConverted === undefined && dto.exchangeRate === undefined) {
+        if (
+          dto.amountConverted === undefined &&
+          dto.exchangeRate === undefined
+        ) {
           throw new BadRequestException(
             'Para transferencias entre monedas distintas, envía amountConverted o exchangeRate',
           );
@@ -158,8 +169,12 @@ export class TransfersService {
       ]);
 
       const all = [
-        ...outSnap.docs.map((d) => this.toTransfer(d.id, d.data() as TransferDocument)),
-        ...inSnap.docs.map((d) => this.toTransfer(d.id, d.data() as TransferDocument)),
+        ...outSnap.docs.map((d) =>
+          this.toTransfer(d.id, d.data() as TransferDocument),
+        ),
+        ...inSnap.docs.map((d) =>
+          this.toTransfer(d.id, d.data() as TransferDocument),
+        ),
       ];
 
       // Dedupe (no debería haber duplicados pero por si acaso) y ordenar
@@ -189,7 +204,8 @@ export class TransfersService {
       .get();
     if (!doc.exists) throw new NotFoundException('Transferencia no encontrada');
     const data = doc.data() as TransferDocument;
-    if (data.userId !== userId) throw new NotFoundException('Transferencia no encontrada');
+    if (data.userId !== userId)
+      throw new NotFoundException('Transferencia no encontrada');
     return this.toTransfer(id, data);
   }
 
@@ -203,7 +219,8 @@ export class TransfersService {
 
     await firestore.runTransaction(async (tx) => {
       const transferSnap = await tx.get(transferRef);
-      if (!transferSnap.exists) throw new NotFoundException('Transferencia no encontrada');
+      if (!transferSnap.exists)
+        throw new NotFoundException('Transferencia no encontrada');
 
       const transfer = transferSnap.data() as TransferDocument;
       if (transfer.userId !== userId)
@@ -215,7 +232,10 @@ export class TransfersService {
       const toRef = firestore
         .collection(ACCOUNTS_COLLECTION)
         .doc(transfer.toAccountId);
-      const [fromSnap, toSnap] = await Promise.all([tx.get(fromRef), tx.get(toRef)]);
+      const [fromSnap, toSnap] = await Promise.all([
+        tx.get(fromRef),
+        tx.get(toRef),
+      ]);
 
       const now = Timestamp.now();
 
@@ -230,7 +250,8 @@ export class TransfersService {
       if (toSnap.exists) {
         const to = toSnap.data() as AccountDocument;
         tx.update(toRef, {
-          bankBalance: to.bankBalance - (transfer.amountConverted ?? transfer.amount),
+          bankBalance:
+            to.bankBalance - (transfer.amountConverted ?? transfer.amount),
           updatedAt: now,
         });
       }

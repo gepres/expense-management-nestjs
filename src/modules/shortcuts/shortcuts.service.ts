@@ -28,7 +28,9 @@ export class ShortcutsService {
   }
 
   async findAll(userId: string) {
-    const snapshot = await this.getCollection(userId).orderBy('createdAt', 'desc').get();
+    const snapshot = await this.getCollection(userId)
+      .orderBy('createdAt', 'desc')
+      .get();
     return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   }
 
@@ -40,7 +42,11 @@ export class ShortcutsService {
     return { id: doc.id, ...doc.data() };
   }
 
-  async update(userId: string, id: string, updateShortcutDto: UpdateShortcutDto) {
+  async update(
+    userId: string,
+    id: string,
+    updateShortcutDto: UpdateShortcutDto,
+  ) {
     const docRef = this.getCollection(userId).doc(id);
     const doc = await docRef.get();
     if (!doc.exists) {
