@@ -311,6 +311,7 @@ Tracking/cuotas configurables por env `AI_PRICE_*` y `AI_QUOTA_*` (ver
 | GET | `/shared-groups/:id/insights` | 🔒 | Insights del grupo |
 | GET | `/shared-groups/:id/activity` | 🔒 | Actividad reciente |
 | GET | `/shared-groups/:id/export` | 🔒 | Exportar datos del grupo |
+| POST | `/shared-groups/:id/extract-receipt` | 🔒 PRO | Extrae datos de un comprobante (boleta/factura) con IA Vision (Claude Sonnet). Body: `{ kind: 'expense'\|'budget', receiptUrl, categories?, subcategoriesByCategory? }`. La imagen debe estar previamente subida a Firebase Storage en el path `shared-groups/{groupId}/{kind}s/...`. Cuota IA (`shared-receipt-scan`). 403 si no-PRO, 429 si cuota excedida |
 
 ## WhatsApp · `/api/whatsapp`
 

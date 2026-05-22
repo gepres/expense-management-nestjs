@@ -4,6 +4,7 @@ import {
   IsString,
   IsOptional,
   IsArray,
+  ValidateIf,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -71,4 +72,24 @@ export class CreateSharedExpenseDto {
   @IsOptional()
   @IsString()
   ruc?: string;
+
+  @ApiPropertyOptional({
+    example: 'https://firebasestorage.googleapis.com/...',
+    description:
+      'URL pública de la foto del comprobante. null para limpiarla en update.',
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  receiptUrl?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'shared-groups/{groupId}/expenses/{uid}_{ts}.jpg',
+    description:
+      'Path interno en Firebase Storage. null para limpiarlo en update.',
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  receiptPath?: string | null;
 }

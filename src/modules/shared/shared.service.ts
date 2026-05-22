@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
@@ -9,6 +10,12 @@ import { CreateSharedGroupDto } from './dto/create-shared-group.dto';
 import { UpdateSharedGroupDto } from './dto/update-shared-group.dto';
 import { CreateSharedBudgetDto } from './dto/create-shared-budget.dto';
 import { CreateSharedExpenseDto } from './dto/create-shared-expense.dto';
+import {
+  ExtractReceiptDto,
+  ExtractedReceiptResult,
+} from './dto/extract-receipt.dto';
+import { AnthropicService } from '../anthropic/anthropic.service';
+import { QuotaService } from '../ai-usage/quota.service';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import * as crypto from 'crypto';
 
@@ -16,7 +23,11 @@ import * as crypto from 'crypto';
 export class SharedService {
   private readonly logger = new Logger(SharedService.name);
 
-  constructor(private readonly firebaseService: FirebaseService) {}
+  constructor(
+    private readonly firebaseService: FirebaseService,
+    private readonly anthropicService: AnthropicService,
+    private readonly quotaService: QuotaService,
+  ) {}
 
   // --- Groups ---
 
@@ -477,6 +488,109 @@ export class SharedService {
 
     await expenseRef.delete();
     return { success: true };
+  }
+
+  // --- Receipt extraction (PRO) ---
+
+  /**
+   * Extrae datos de una boleta/factura adjunta a un gasto o aporte del
+   * grupo. Llamado por el endpoint PRO-gated `POST :id/extract-receipt`.
+   *
+   * Pasos:
+   *   1. Valida que el grupo existe y el usuario es miembro.
+   *   2. Pre-check de cuota IA (lanza 429 si excedida).
+   *   3. Descarga la imagen desde la URL pública de Firebase Storage
+   *      (validando que pertenece al groupId correcto, no a otro grupo).
+   *   4. Llama a Claude Sonnet (vision) con prompt en español.
+   *   5. Devuelve los campos parseados; el frontend prellena el form.
+   */
+  async extractReceipt(
+    userId: string,
+    groupId: string,
+    dto: ExtractReceiptDto,
+  ): Promise<ExtractedReceiptResult> {
+    const firestore = this.firebaseService.getFirestore();
+    const groupRef = firestore.collection('shared_groups').doc(groupId);
+    const doc = await groupRef.get();
+
+    if (!doc.exists) throw new NotFoundException('Group not found');
+    const data = doc.data();
+    if (!data || !data.members?.includes(userId)) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    // Pre-check de cuota (lanza HttpException 429 si excedida).
+    await this.quotaService.assertWithinQuota(userId, {
+      feature: 'shared-receipt-scan',
+    });
+
+    const { buffer, mimeType } = await this.downloadReceiptFromUrl(
+      dto.receiptUrl,
+      groupId,
+    );
+    const base64 = buffer.toString('base64');
+
+    const result = await this.anthropicService.extractReceiptForSharedGroup(
+      base64,
+      mimeType,
+      {
+        kind: dto.kind,
+        categories: dto.kind === 'expense' ? dto.categories : undefined,
+        subcategoriesByCategory:
+          dto.kind === 'expense' ? dto.subcategoriesByCategory : undefined,
+      },
+      { userId, scope: 'user', feature: 'shared-receipt-scan' },
+    );
+
+    return result;
+  }
+
+  /**
+   * Descarga la imagen desde una URL pública de Firebase Storage,
+   * validando que el path corresponde al `shared-groups/{groupId}/` esperado
+   * (previene que un usuario pase la URL de otro grupo).
+   */
+  private async downloadReceiptFromUrl(
+    receiptUrl: string,
+    expectedGroupId: string,
+  ): Promise<{ buffer: Buffer; mimeType: string }> {
+    let parsed: URL;
+    try {
+      parsed = new URL(receiptUrl);
+    } catch {
+      throw new BadRequestException('receiptUrl no es una URL válida');
+    }
+
+    if (
+      parsed.hostname !== 'firebasestorage.googleapis.com' ||
+      !parsed.pathname.includes('/o/')
+    ) {
+      throw new BadRequestException(
+        'receiptUrl debe apuntar a Firebase Storage',
+      );
+    }
+
+    const encodedPath = parsed.pathname.split('/o/')[1];
+    if (!encodedPath) {
+      throw new BadRequestException('receiptUrl no contiene un path válido');
+    }
+    const path = decodeURIComponent(encodedPath);
+    if (!path.startsWith(`shared-groups/${expectedGroupId}/`)) {
+      throw new ForbiddenException('La imagen no pertenece a este grupo');
+    }
+
+    const response = await fetch(receiptUrl);
+    if (!response.ok) {
+      throw new BadRequestException(
+        `No se pudo descargar la imagen (status ${response.status})`,
+      );
+    }
+    const mimeType = response.headers.get('content-type') || 'image/jpeg';
+    if (!mimeType.startsWith('image/')) {
+      throw new BadRequestException('El archivo descargado no es una imagen');
+    }
+    const arrayBuf = await response.arrayBuffer();
+    return { buffer: Buffer.from(arrayBuf), mimeType };
   }
 
   // --- Invitations ---

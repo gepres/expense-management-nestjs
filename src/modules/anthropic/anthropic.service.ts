@@ -264,6 +264,162 @@ export class AnthropicService {
   }
 
   /**
+   * Extracción dirigida al flujo de **grupos compartidos** (PRO). Prompt
+   * en español, salida en español. A diferencia de `extractReceiptData`
+   * (que mapea al contrato legacy `receipts/scan`), aquí los campos están
+   * alineados 1-a-1 con los formularios de SharedExpense / SharedBudget.
+   *
+   * Para `kind: 'expense'`, recibe `categories` (lista del usuario) y
+   * `subcategoriesByCategory` y la IA elige una categoría de la lista
+   * (o `null` si ninguna calza con confianza). Para `kind: 'budget'`
+   * NO se devuelven category/subcategory.
+   *
+   * Devuelve confidence 0-1 (no porcentaje). Si el modelo decide que la
+   * foto no es una boleta, devuelve un objeto con todos los campos null
+   * y confidence 0 (el controller maneja el caso).
+   */
+  async extractReceiptForSharedGroup(
+    imageBase64: string,
+    mimeType: string,
+    opts: {
+      kind: 'expense' | 'budget';
+      categories?: string[];
+      subcategoriesByCategory?: Record<string, string[]>;
+    },
+    usageCtx?: Partial<UsageContext>,
+  ): Promise<{
+    amount: number | null;
+    description: string | null;
+    date: string | null;
+    time: string | null;
+    voucherType: 'boleta' | 'factura' | 'recibo' | 'ticket' | null;
+    voucherNumber: string | null;
+    ruc: string | null;
+    paymentMethod: string | null;
+    category: string | null;
+    subcategory: string | null;
+    confidence: number;
+  }> {
+    const model = this.primaryModel();
+
+    const categoriasBlock =
+      opts.kind === 'expense' && opts.categories && opts.categories.length
+        ? `Categorías disponibles del usuario (elige UNA EXACTA o null si ninguna calza):\n${JSON.stringify(opts.categories)}\n` +
+          (opts.subcategoriesByCategory
+            ? `Subcategorías por categoría (elige UNA EXACTA de la categoría elegida, o null):\n${JSON.stringify(opts.subcategoriesByCategory)}\n`
+            : '')
+        : '';
+
+    const camposCategoria =
+      opts.kind === 'expense'
+        ? `  "category": "<categoría EXACTA de la lista o null>",\n  "subcategory": "<subcategoría EXACTA o null>",\n`
+        : `  "category": null,\n  "subcategory": null,\n`;
+
+    const prompt = `Eres un OCR experto en comprobantes peruanos (boletas, facturas, recibos, tickets). Analiza la imagen y extrae los datos del comprobante.
+
+${categoriasBlock}Métodos de pago posibles (detecta logos/textos visibles): "efectivo", "yape", "plin", "transferencia", "tarjeta_debito", "tarjeta_credito", "otro". Si no estás seguro, usa "efectivo".
+
+Tipos de comprobante: "boleta", "factura", "recibo", "ticket".
+
+Responde ÚNICAMENTE con JSON válido (sin markdown, sin texto extra) con esta forma EXACTA:
+{
+  "amount": <número decimal o null>,
+  "description": "<descripción breve en español (máx 80 chars), incluye el comercio si es visible, o null>",
+  "date": "<YYYY-MM-DD o null>",
+  "time": "<HH:mm o null>",
+  "voucherType": "<boleta|factura|recibo|ticket o null>",
+  "voucherNumber": "<número del comprobante (ej: B001-1234) o null>",
+  "ruc": "<RUC del emisor, 11 dígitos, o null>",
+  "paymentMethod": "<uno de la lista de métodos>",
+${camposCategoria}  "confidence": <número entre 0 y 1>
+}
+
+Reglas:
+- Si el campo no es legible, devuelve null (excepto paymentMethod que es "efectivo" por defecto).
+- "amount" es el TOTAL pagado, no subtotales.
+- "description" debe ser específico (ej: "Almuerzo en Pardos Chicken") no genérico.
+- "confidence" refleja qué tan claro está el texto en la imagen (1 = perfecto, 0.5 = mucho ruido, 0 = no es un comprobante).
+- Si la imagen NO es un comprobante, devuelve TODO null y confidence 0.
+- SOLO el JSON, sin envolverlo en \`\`\`.`;
+
+    const response = await this.client.messages.create({
+      model,
+      max_tokens: 1024,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: mimeType as any,
+                data: imageBase64,
+              },
+            },
+            { type: 'text', text: prompt },
+          ],
+        },
+      ],
+    });
+
+    this.trackUsage(model, response.usage, usageCtx, 'shared-receipt-scan');
+
+    const content = response.content[0];
+    if (content.type !== 'text') {
+      throw new Error('Unexpected response type from Anthropic');
+    }
+
+    const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON found in shared-receipt extraction response');
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+    const num = (v: unknown): number | null =>
+      typeof v === 'number' && Number.isFinite(v) ? v : null;
+    const str = (v: unknown): string | null =>
+      typeof v === 'string' && v.trim() ? v.trim() : null;
+    const voucherType = str(parsed.voucherType) as
+      | 'boleta'
+      | 'factura'
+      | 'recibo'
+      | 'ticket'
+      | null;
+    const allowedVoucher = new Set(['boleta', 'factura', 'recibo', 'ticket']);
+
+    // Validar categoría contra la lista permitida si kind=expense.
+    let category: string | null = null;
+    let subcategory: string | null = null;
+    if (opts.kind === 'expense') {
+      const cat = str(parsed.category);
+      if (cat && opts.categories?.includes(cat)) {
+        category = cat;
+        const sub = str(parsed.subcategory);
+        const validSubs = opts.subcategoriesByCategory?.[cat] ?? [];
+        if (sub && validSubs.includes(sub)) subcategory = sub;
+      }
+    }
+
+    const confidence = num(parsed.confidence) ?? 0;
+
+    return {
+      amount: num(parsed.amount),
+      description: str(parsed.description),
+      date: str(parsed.date),
+      time: str(parsed.time),
+      voucherType:
+        voucherType && allowedVoucher.has(voucherType) ? voucherType : null,
+      voucherNumber: str(parsed.voucherNumber),
+      ruc: str(parsed.ruc),
+      paymentMethod: str(parsed.paymentMethod),
+      category,
+      subcategory,
+      confidence: Math.max(0, Math.min(1, confidence)),
+    };
+  }
+
+  /**
    * Extrae un gasto desde TEXTO (voz transcrita / mensaje). Prompt +
    * parsing del paquete compartido, tier `primary`. Devuelve el canónico
    * ES (`VoiceExtraction`) o `ExtractionError`; el caller mapea.

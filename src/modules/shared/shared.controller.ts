@@ -18,7 +18,10 @@ import { CreateSharedGroupDto } from './dto/create-shared-group.dto';
 import { UpdateSharedGroupDto } from './dto/update-shared-group.dto';
 import { CreateSharedBudgetDto } from './dto/create-shared-budget.dto';
 import { CreateSharedExpenseDto } from './dto/create-shared-expense.dto';
+import { ExtractReceiptDto } from './dto/extract-receipt.dto';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
+import { ProGuard } from '../../common/guards/pro.guard';
+import { RequirePro } from '../../common/decorators/require-pro.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { FirebaseUser } from '../../common/interfaces/firebase-user.interface';
 import {
@@ -31,7 +34,7 @@ import {
 @ApiTags('Shared Groups')
 @ApiBearerAuth('firebase-auth')
 @Controller('shared-groups')
-@UseGuards(FirebaseAuthGuard)
+@UseGuards(FirebaseAuthGuard, ProGuard)
 export class SharedController {
   constructor(private readonly sharedService: SharedService) {}
 
@@ -134,6 +137,26 @@ export class SharedController {
     @Body() dto: Partial<CreateSharedExpenseDto>,
   ) {
     return this.sharedService.updateExpense(user.uid, groupId, expenseId, dto);
+  }
+
+  @Post(':id/extract-receipt')
+  @RequirePro()
+  @ApiOperation({
+    summary:
+      'Extraer datos de un comprobante con IA (PRO). La imagen debe estar previamente subida a Firebase Storage en este grupo.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Datos extraídos exitosamente',
+  })
+  @ApiResponse({ status: 403, description: 'Requiere cuenta PRO' })
+  @ApiResponse({ status: 429, description: 'Cuota IA mensual excedida' })
+  extractReceipt(
+    @CurrentUser() user: FirebaseUser,
+    @Param('id') groupId: string,
+    @Body() dto: ExtractReceiptDto,
+  ) {
+    return this.sharedService.extractReceipt(user.uid, groupId, dto);
   }
 
   @Delete(':id/expenses/:expenseId')
