@@ -35,6 +35,8 @@ import { PresupuestosModule } from './modules/presupuestos/presupuestos.module';
 import { ProgramadosModule } from './modules/programados/programados.module';
 import { NotificacionesModule } from './modules/notificaciones/notificaciones.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { WidgetModule } from './modules/widget/widget.module';
 
 @Module({
   imports: [
@@ -92,6 +94,8 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     ProgramadosModule,
     NotificacionesModule,
     AnalyticsModule,
+    DashboardModule,
+    WidgetModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -313,6 +313,22 @@ Tracking/cuotas configurables por env `AI_PRICE_*` y `AI_QUOTA_*` (ver
 | GET | `/shared-groups/:id/export` | 🔒 | Exportar datos del grupo |
 | POST | `/shared-groups/:id/extract-receipt` | 🔒 PRO | Extrae datos de un comprobante (boleta/factura) con IA Vision (Claude Sonnet). Body: `{ kind: 'expense'\|'budget', receiptUrl, categories?, subcategoriesByCategory? }`. La imagen debe estar previamente subida a Firebase Storage en el path `shared-groups/{groupId}/{kind}s/...`. Cuota IA (`shared-receipt-scan`). 403 si no-PRO, 429 si cuota excedida |
 
+## Dashboard · `/api/dashboard`
+
+> Resumen rápido para el widget Windows (y futuros widgets móviles). TZ-aware, cache 5 min server-side.
+
+| Método | Ruta | Auth | Descripción |
+|---|---|:---:|---|
+| GET | `/dashboard/summary?range=today\|yesterday\|week\|month` | 🔒 | Totales del periodo + cuentas con saldos. Calculado en la TZ del usuario (`users/{uid}.zonaHoraria`, default `America/Lima`). Default `range=today` |
+
+## Widget · `/api/widget`
+
+> Emparejamiento del widget Tauri con la sesión web. Ver [`WIDGET_AUTH.md`](./WIDGET_AUTH.md).
+
+| Método | Ruta | Auth | Descripción |
+|---|---|:---:|---|
+| POST | `/widget/issue-token` | 🔒 | Emite un custom token Firebase (TTL 1h, claim `source: 'widget'`) para que el cliente Tauri haga `signInWithCustomToken`. Rate-limit: 5/min |
+
 ## WhatsApp · `/api/whatsapp`
 
 | Método | Ruta | Auth | Descripción |
