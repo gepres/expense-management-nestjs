@@ -141,6 +141,16 @@ export class CreateExpenseDto {
   @IsIn(REIMBURSEMENT_STATUSES as unknown as string[])
   reimbursementStatus?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'Canal de origen del gasto (diagnóstico). Si no se envía, el backend ' +
+      'lo deriva de origenIA/shoppingListId; por defecto "web".',
+    example: 'web',
+  })
+  @IsOptional()
+  @IsString()
+  origen?: string;
+
   // --- Bitácora de aprendizaje (learning_log) — opcional ---
   // Solo lo envía el frontend cuando el gasto se originó por voz/imagen.
   // Si `origenIA` está presente, el backend registra (best-effort) una

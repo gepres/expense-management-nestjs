@@ -1,13 +1,15 @@
-import { Module } from '@nestjs/common';
+import { Module, Global } from '@nestjs/common';
 import { UsageEventsService } from './usage-events.service';
 import { UsageEventsController } from './usage-events.controller';
 
 /**
- * Módulo de analítica de flujos / diagnóstico de producto.
+ * Módulo global de analítica de flujos / diagnóstico de producto.
  *  - Fase 0: `GET /usage-events/admin/snapshot` (métricas derivables).
- *  - Fases 1-2 (futuro): rollups de eventos (`track`) + endpoints overview/daily.
- * `FirebaseService` es global.
+ *  - Fase 1: `track()` (rollups) + instrumentación + overview.
+ *  - Fase 2: beacon client (`POST /track`, `/session-end`).
+ * `@Global` para inyectar `UsageEventsService` en cualquier módulo sin importarlo.
  */
+@Global()
 @Module({
   controllers: [UsageEventsController],
   providers: [UsageEventsService],

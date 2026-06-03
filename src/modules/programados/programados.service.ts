@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Timestamp } from 'firebase-admin/firestore';
 import { FirebaseService } from '../firebase/firebase.service';
+import { UsageEventsService } from '../usage-events/usage-events.service';
 import { CreateGastoProgramadoDto } from './dto/create-gasto-programado.dto';
 import { UpdateGastoProgramadoDto } from './dto/update-gasto-programado.dto';
 import {
@@ -26,7 +27,10 @@ const EJECUCIONES = 'ejecucionesProgramadas';
 export class ProgramadosService {
   private readonly logger = new Logger(ProgramadosService.name);
 
-  constructor(private readonly firebaseService: FirebaseService) {}
+  constructor(
+    private readonly firebaseService: FirebaseService,
+    private readonly usageEvents: UsageEventsService,
+  ) {}
 
   // ==========================================================================
   // Helpers
@@ -239,6 +243,7 @@ export class ProgramadosService {
       `Programado creado ${ref.id}: ${dto.descripcion} (${dto.frecuencia}) próx ${proxima.toISOString()}`,
     );
 
+    await this.usageEvents.track('rec.gasto.created', { userId });
     return this.toGastoProgramado(ref.id, doc);
   }
 
@@ -400,14 +405,19 @@ export class ProgramadosService {
     if (data.userId !== userId) throw new ForbiddenException('Acceso denegado');
     await ref.delete();
     this.logger.log(`Programado eliminado ${id}`);
+    await this.usageEvents.track('rec.gasto.deleted', { userId });
   }
 
   async pause(userId: string, id: string): Promise<GastoProgramado> {
-    return this.update(userId, id, { activo: false });
+    const r = await this.update(userId, id, { activo: false });
+    await this.usageEvents.track('rec.gasto.paused', { userId });
+    return r;
   }
 
   async resume(userId: string, id: string): Promise<GastoProgramado> {
-    return this.update(userId, id, { activo: true });
+    const r = await this.update(userId, id, { activo: true });
+    await this.usageEvents.track('rec.gasto.resumed', { userId });
+    return r;
   }
 
   // ==========================================================================

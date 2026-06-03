@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Timestamp } from 'firebase-admin/firestore';
 import { FirebaseService } from '../firebase/firebase.service';
+import { UsageEventsService } from '../usage-events/usage-events.service';
 import { CreateTransferenciaProgramadaDto } from './dto/create-transferencia-programada.dto';
 import { UpdateTransferenciaProgramadaDto } from './dto/update-transferencia-programada.dto';
 import {
@@ -26,7 +27,10 @@ const EJECUCIONES = 'ejecucionesProgramadas';
 export class TransferenciasProgramadasService {
   private readonly logger = new Logger(TransferenciasProgramadasService.name);
 
-  constructor(private readonly firebaseService: FirebaseService) {}
+  constructor(
+    private readonly firebaseService: FirebaseService,
+    private readonly usageEvents: UsageEventsService,
+  ) {}
 
   private toDto(
     id: string,
@@ -234,6 +238,7 @@ export class TransferenciasProgramadasService {
       `Transferencia programada creada ${ref.id}: ${dto.cuentaOrigenId}→${dto.cuentaDestinoId} ${dto.monto} ${dto.moneda} (${dto.frecuencia}) próx ${proxima.toISOString()}`,
     );
 
+    await this.usageEvents.track('rec.transf.created', { userId });
     return this.toDto(ref.id, doc);
   }
 
@@ -431,14 +436,19 @@ export class TransferenciasProgramadasService {
     if (data.userId !== userId) throw new ForbiddenException('Acceso denegado');
     await ref.delete();
     this.logger.log(`Transferencia programada eliminada ${id}`);
+    await this.usageEvents.track('rec.transf.deleted', { userId });
   }
 
   async pause(userId: string, id: string): Promise<TransferenciaProgramada> {
-    return this.update(userId, id, { activo: false });
+    const r = await this.update(userId, id, { activo: false });
+    await this.usageEvents.track('rec.transf.paused', { userId });
+    return r;
   }
 
   async resume(userId: string, id: string): Promise<TransferenciaProgramada> {
-    return this.update(userId, id, { activo: true });
+    const r = await this.update(userId, id, { activo: true });
+    await this.usageEvents.track('rec.transf.resumed', { userId });
+    return r;
   }
 
   // ==========================================================================

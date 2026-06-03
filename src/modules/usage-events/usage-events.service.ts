@@ -1,8 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import type { Query } from 'firebase-admin/firestore';
 import { FirebaseService } from '../firebase/firebase.service';
-import { UsageSnapshot } from './interfaces/usage-snapshot.interface';
+import {
+  UsageSnapshot,
+  UsageOverview,
+} from './interfaces/usage-snapshot.interface';
+import {
+  ALLOWED_EVENTS,
+  CLIENT_EVENT_SET,
+  KNOWN_ROUTES,
+} from './usage-events.constants';
 
 /** TTL del caché en memoria del snapshot (control de costo de lecturas). */
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -25,6 +33,10 @@ export class UsageEventsService {
 
   private monthKey(d: Date = new Date()): string {
     return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  }
+
+  private dayKey(d: Date = new Date()): string {
+    return `${this.monthKey(d)}-${String(d.getUTCDate()).padStart(2, '0')}`;
   }
 
   private startOfMonthUTC(d: Date = new Date()): Date {
@@ -158,5 +170,162 @@ export class UsageEventsService {
 
     this.cache = { at: Date.now(), data: snapshot };
     return snapshot;
+  }
+
+  /**
+   * Overview mensual: contadores de eventos del rollup app + gastos por
+   * origen (derivable del campo `origen`).
+   */
+  async getOverview(mesParam?: string): Promise<UsageOverview> {
+    const db = this.firebase.getFirestore();
+    const mes =
+      mesParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(mesParam)
+        ? mesParam
+        : this.monthKey();
+
+    const snap = await db.collection('usageEventsAppMonthly').doc(mes).get();
+    const counters = (
+      snap.exists ? (snap.data()?.counters ?? {}) : {}
+    ) as Record<string, number>;
+
+    const origenes = [
+      'web',
+      'scan',
+      'voz',
+      'lista',
+      'whatsapp',
+      'import',
+      'shared',
+    ];
+    const counts = await Promise.all(
+      origenes.map((o) =>
+        this.count(db.collection('expenses').where('origen', '==', o)),
+      ),
+    );
+    const gastosPorOrigen: Record<string, number> = {};
+    origenes.forEach((o, i) => {
+      gastosPorOrigen[o] = counts[i];
+    });
+
+    return {
+      mes,
+      generatedAt: new Date().toISOString(),
+      counters,
+      gastosPorOrigen,
+    };
+  }
+
+  // ==========================================================================
+  // Tracking de eventos (Fase 1-2) — escribe rollups con FieldValue.increment.
+  // Solo el Admin SDK escribe estas colecciones (rules: WRITE bloqueado).
+  // ==========================================================================
+
+  /**
+   * Registra UN evento incrementando los rollups (app mensual + diario +
+   * por usuario si hay `userId`). Best-effort: valida la allowlist y nunca
+   * lanza (el tracking jamás debe romper el flujo principal).
+   */
+  async track(
+    event: string,
+    opts: { userId?: string; count?: number } = {},
+  ): Promise<void> {
+    if (!ALLOWED_EVENTS.has(event)) {
+      this.logger.warn(`track(): evento no permitido "${event}" (ignorado)`);
+      return;
+    }
+    await this.trackCounters({ [event]: opts.count ?? 1 }, opts);
+  }
+
+  /**
+   * Incrementa varios contadores en un solo batch (navegación / sesiones).
+   * No valida allowlist: el caller construye claves seguras (p. ej. el
+   * endpoint `session-end` valida rutas contra `KNOWN_ROUTES`).
+   */
+  async trackCounters(
+    counters: Record<string, number>,
+    opts: { userId?: string } = {},
+  ): Promise<void> {
+    try {
+      const entries = Object.entries(counters).filter(([, n]) => n > 0);
+      if (entries.length === 0) return;
+
+      const db = this.firebase.getFirestore();
+      const now = Timestamp.now();
+      const mes = this.monthKey();
+      const dia = this.dayKey();
+
+      const toInc = (): Record<string, FieldValue> => {
+        const out: Record<string, FieldValue> = {};
+        for (const [k, n] of entries) out[k] = FieldValue.increment(n);
+        return out;
+      };
+
+      const batch = db.batch();
+      batch.set(
+        db.collection('usageEventsAppMonthly').doc(mes),
+        { scope: 'app', mes, updatedAt: now, counters: toInc() },
+        { merge: true },
+      );
+      batch.set(
+        db.collection('usageEventsAppDaily').doc(dia),
+        { scope: 'app', dia, updatedAt: now, counters: toInc() },
+        { merge: true },
+      );
+      if (opts.userId) {
+        batch.set(
+          db.collection('usageEventsMonthly').doc(`${opts.userId}_${mes}`),
+          {
+            scope: 'user',
+            userId: opts.userId,
+            mes,
+            updatedAt: now,
+            counters: toInc(),
+          },
+          { merge: true },
+        );
+      }
+      await batch.commit();
+    } catch (err) {
+      this.logger.error('trackCounters falló (ignorado)', err as Error);
+    }
+  }
+
+  /**
+   * Evento de funnel emitido por el cliente. Valida contra la allowlist
+   * client (un cliente no puede inflar contadores server como `wsp.*`).
+   */
+  async trackClient(event: string, userId: string): Promise<void> {
+    if (!CLIENT_EVENT_SET.has(event)) {
+      this.logger.warn(`trackClient(): evento no permitido "${event}"`);
+      return;
+    }
+    await this.track(event, { userId });
+  }
+
+  /**
+   * Resumen de una sesión de navegación: page-views por ruta (validadas
+   * contra `KNOWN_ROUTES`) + métricas de sesión (count/bounce/views/duración).
+   */
+  async trackSession(
+    dto: {
+      views?: Record<string, number>;
+      totalViews?: number;
+      durationMs?: number;
+    },
+    userId: string,
+  ): Promise<void> {
+    const counters: Record<string, number> = {};
+    for (const [ruta, n] of Object.entries(dto.views ?? {})) {
+      if (KNOWN_ROUTES.has(ruta) && typeof n === 'number' && n > 0) {
+        counters[`view.${ruta}`] = Math.floor(n);
+      }
+    }
+    const totalViews = Math.max(0, Math.floor(dto.totalViews ?? 0));
+    const durationMs = Math.max(0, Math.floor(dto.durationMs ?? 0));
+    counters['nav.session.count'] = 1;
+    counters['nav.session.bounce'] = totalViews <= 1 ? 1 : 0;
+    counters['nav.session.viewsSum'] = totalViews;
+    counters['nav.session.durationMsSum'] = durationMs;
+    await this.trackCounters(counters, { userId });
   }
 }

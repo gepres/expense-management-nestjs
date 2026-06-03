@@ -382,6 +382,18 @@ export class ExpensesService {
       if (dto.reimbursementStatus)
         expenseData.reimbursementStatus = dto.reimbursementStatus;
 
+      // Canal de origen (diagnóstico). Si el cliente no lo envía, se deriva
+      // de campos existentes (IA por voz/imagen, lista de compras) → 'web'.
+      expenseData.origen =
+        dto.origen ??
+        (dto.origenIA === 'voz'
+          ? 'voz'
+          : dto.origenIA === 'imagen'
+            ? 'scan'
+            : dto.shoppingListId
+              ? 'lista'
+              : 'web');
+
       tx.set(expenseRef, expenseData);
       tx.update(accountRef, {
         [field]: newBalance,

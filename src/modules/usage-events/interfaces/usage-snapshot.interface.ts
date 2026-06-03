@@ -58,3 +58,13 @@ export interface UsageSnapshot {
   recibos: { total: number };
   listas: { total: number };
 }
+
+/** Overview mensual: contadores de eventos (rollup) + gastos por origen. */
+export interface UsageOverview {
+  mes: string;
+  generatedAt: string;
+  /** Contadores del rollup `usageEventsAppMonthly/{mes}` (event → n). */
+  counters: Record<string, number>;
+  /** Gastos creados por canal de origen (derivable del campo `origen`). */
+  gastosPorOrigen: Record<string, number>;
+}
