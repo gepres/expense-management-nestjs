@@ -37,6 +37,7 @@ import { NotificacionesModule } from './modules/notificaciones/notificaciones.mo
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { WidgetModule } from './modules/widget/widget.module';
+import { UsageEventsModule } from './modules/usage-events/usage-events.module';
 
 @Module({
   imports: [
@@ -96,6 +97,7 @@ import { WidgetModule } from './modules/widget/widget.module';
     AnalyticsModule,
     DashboardModule,
     WidgetModule,
+    UsageEventsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
