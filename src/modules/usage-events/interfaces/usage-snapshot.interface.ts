@@ -68,3 +68,17 @@ export interface UsageOverview {
   /** Gastos creados por canal de origen (derivable del campo `origen`). */
   gastosPorOrigen: Record<string, number>;
 }
+
+/** Fila de actividad por usuario (rollup `usageEventsMonthly`). */
+export interface UsageUserRow {
+  userId: string;
+  /** Suma de todos los contadores del mes. */
+  total: number;
+  counters: Record<string, number>;
+}
+
+/** Punto de la serie diaria de actividad. */
+export interface UsageDailyPoint {
+  dia: string;
+  total: number;
+}

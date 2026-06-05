@@ -5,6 +5,8 @@ import { FirebaseService } from '../firebase/firebase.service';
 import {
   UsageSnapshot,
   UsageOverview,
+  UsageUserRow,
+  UsageDailyPoint,
 } from './interfaces/usage-snapshot.interface';
 import {
   ALLOWED_EVENTS,
@@ -213,6 +215,71 @@ export class UsageEventsService {
       counters,
       gastosPorOrigen,
     };
+  }
+
+  /**
+   * Top usuarios por actividad del mes (suma de contadores). Lee los rollups
+   * por usuario y ordena en memoria (sin índice compuesto).
+   */
+  async getTopUsers(mesParam?: string, max = 15): Promise<UsageUserRow[]> {
+    const db = this.firebase.getFirestore();
+    const mes =
+      mesParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(mesParam)
+        ? mesParam
+        : this.monthKey();
+    const limit = Math.min(Math.max(max, 1), 50);
+
+    const snap = await db
+      .collection('usageEventsMonthly')
+      .where('mes', '==', mes)
+      .limit(1000)
+      .get();
+
+    const rows: UsageUserRow[] = snap.docs.map((d) => {
+      const data = d.data();
+      const counters = (data.counters ?? {}) as Record<string, number>;
+      const total = Object.values(counters).reduce(
+        (a, b) => a + (Number(b) || 0),
+        0,
+      );
+      return { userId: (data.userId as string) ?? d.id, total, counters };
+    });
+    rows.sort((a, b) => b.total - a.total);
+    return rows.slice(0, limit);
+  }
+
+  /**
+   * Serie diaria de actividad (suma de contadores por día) de los últimos
+   * `dias` días. Lee los docs `usageEventsAppDaily/{YYYY-MM-DD}` por clave.
+   */
+  async getDaily(diasParam?: number): Promise<UsageDailyPoint[]> {
+    const dias = Math.min(Math.max(diasParam ?? 14, 1), 90);
+    const db = this.firebase.getFirestore();
+    const now = new Date();
+
+    const keys: string[] = [];
+    for (let i = dias - 1; i >= 0; i--) {
+      const d = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i),
+      );
+      keys.push(this.dayKey(d));
+    }
+
+    const refs = keys.map((k) =>
+      db.collection('usageEventsAppDaily').doc(k),
+    );
+    const snaps = await db.getAll(...refs);
+
+    return snaps.map((s, i) => {
+      const counters = (
+        s.exists ? (s.data()?.counters ?? {}) : {}
+      ) as Record<string, number>;
+      const total = Object.values(counters).reduce(
+        (a, b) => a + (Number(b) || 0),
+        0,
+      );
+      return { dia: keys[i], total };
+    });
   }
 
   // ==========================================================================

@@ -50,6 +50,30 @@ export class UsageEventsController {
     return this.usageEvents.getOverview(mes);
   }
 
+  @Get('admin/top-users')
+  @UseGuards(AdminGuard)
+  @ApiOperation({
+    summary: 'Top usuarios por actividad del mes (admin)',
+    description: 'Ordenado por suma de contadores. `?mes=YYYY-MM`, `?max=N`.',
+  })
+  @ApiResponse({ status: 200, description: 'Top usuarios' })
+  async topUsers(@Query('mes') mes?: string, @Query('max') max?: string) {
+    const n = max ? parseInt(max, 10) : undefined;
+    return this.usageEvents.getTopUsers(mes, Number.isNaN(n) ? undefined : n);
+  }
+
+  @Get('admin/daily')
+  @UseGuards(AdminGuard)
+  @ApiOperation({
+    summary: 'Serie diaria de actividad (admin)',
+    description: 'Total de eventos por día. `?dias=N` (1-90, default 14).',
+  })
+  @ApiResponse({ status: 200, description: 'Serie diaria' })
+  async daily(@Query('dias') dias?: string) {
+    const n = dias ? parseInt(dias, 10) : undefined;
+    return this.usageEvents.getDaily(Number.isNaN(n) ? undefined : n);
+  }
+
   // --- Beacons del cliente (cualquier usuario autenticado) ---
 
   @Post('track')
